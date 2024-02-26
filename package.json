@@ -1,0 +1,29 @@
+{
+  "name": "realreview",
+  "version": "1.0.0",
+  "description": "Backend code for an application where one can add reviews about anything on the internet",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/vivekvking/realReview.git"
+  },
+  "author": "vivek",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/vivekvking/realReview/issues"
+  },
+  "homepage": "https://github.com/vivekvking/realReview#readme",
+  "dependencies": {
+    "aws-sdk": "^2.1565.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2",
+    "mongoose": "^8.2.0",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1"
+  }
+}
