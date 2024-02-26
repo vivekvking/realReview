@@ -2,10 +2,13 @@
   "name": "realreview",
   "version": "1.0.0",
   "description": "Backend code for an application where one can add reviews about anything on the internet",
-  "main": "app.js",
+  "main": "app.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node app.js"
+    "build": "rimraf dist && npx tsc",
+    "prestart": "npm run build",
+    "start": "node ./dist/app.js",
+    "predev": "npm run build",
+    "dev": "npx tsc -w & nodemon ./dist/app.js"
   },
   "repository": {
     "type": "git",
@@ -18,12 +21,19 @@
   },
   "homepage": "https://github.com/vivekvking/realReview#readme",
   "dependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.20",
     "aws-sdk": "^2.1565.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.18.2",
     "mongoose": "^8.2.0",
     "morgan": "^1.10.0",
-    "multer": "^1.4.5-lts.1"
+    "multer": "^1.4.5-lts.1",
+    "rimraf": "^5.0.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0",
+    "typescript": "^5.3.3"
   }
 }
