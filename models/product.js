@@ -19,12 +19,12 @@ const ProductSchema = Schema({
   },
   createdBy: {
     type: Mongoose.Types.ObjectId,
-    ref: "user"
+    ref: 'user',
   },
   category: {
     type: Mongoose.Types.ObjectId,
-    ref: "category"
-  }
+    ref: 'category',
+  },
 });
 
 const Product = mongooseConn.model('product', ProductSchema, 'product');
