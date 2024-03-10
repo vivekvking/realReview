@@ -10,6 +10,7 @@ router.get('/product/:id', getSingleProduct);
 
 //? add product
 
+
 //? delete product
 
 //? edit product

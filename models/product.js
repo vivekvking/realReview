@@ -25,6 +25,9 @@ const ProductSchema = Schema({
     type: Mongoose.Types.ObjectId,
     ref: 'category',
   },
+  isDeleted: {
+    type: Boolean
+  }
 });
 
 const Product = mongooseConn.model('product', ProductSchema, 'product');
