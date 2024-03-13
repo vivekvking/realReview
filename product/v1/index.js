@@ -17,4 +17,6 @@ router.delete('/product/:id', deleteProduct);
 //? edit product
 router.put('/product/:id', editProduct);
 
+// todo - upvote / downvote a product
+
 module.exports = router;
