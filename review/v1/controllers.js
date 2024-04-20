@@ -16,7 +16,20 @@ const getReviewOfSingleProduct = async (req, res, next) => {
   }
 };
 
+const getCommentsOnReview = async (req, res, next) => {
+  try {
+    let { productId, reviewId } = req.params;
+    let { skip = 0, limit = 10 } = req.query;
+    let comments = await Review.find({ productId, parent: reviewId }).skip(skip).limit(limit).exec().lean();
+    if (!comments) throw new httpError(null, 404, {}, 'Not Found!');
+    sendResponse(res, 200, comments, 'Success!');
+  } catch (err) {
+    err.scope = err.scope || 'getCommentsOnReview';
+    next({ err });
+  }
+};
 
 module.exports = {
-  getReviewOfSingleProduct
-}
+  getReviewOfSingleProduct,
+  getCommentsOnReview,
+};

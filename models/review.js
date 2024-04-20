@@ -32,6 +32,8 @@ const ReviewSchema = Schema(
   },
 );
 
+
+ReviewSchema.index({ productId: 1, parent: 1 });
 const Review = mongooseConn.model('review', ReviewSchema, 'review');
 
 module.exports = Review;

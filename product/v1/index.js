@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { getAllProducts, getSingleProduct, addProduct, deleteProduct, editProduct } = require('./controllers');
+const { getAllProducts, getSingleProduct, addProduct, deleteProduct, editProduct, createCategory, listCategories } = require('./controllers');
 const router = Router();
 
 //? get products
@@ -18,5 +18,12 @@ router.delete('/product/:id', deleteProduct);
 router.put('/product/:id', editProduct);
 
 // todo - upvote / downvote a product
+
+/*************** Category Routes **************/
+//? create category
+router.post('/category', createCategory);
+
+//? list categories
+router.get('/category', listCategories);
 
 module.exports = router;

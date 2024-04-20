@@ -16,7 +16,7 @@ const UserSchema = Schema(
     email: {
       type: String,
     },
-    referalId: {
+    referralId: {
       type: String,
     },
   },

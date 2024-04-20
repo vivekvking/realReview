@@ -1,6 +1,7 @@
 const Product = require('../../models/product');
 const { sendResponse } = require('../../utils/helpers/helper');
 const { httpError } = require('../../utils/helpers/error');
+const Category = require('../../models/category');
 
 const getAllProducts = async (req, res, next) => {
   try {
@@ -41,7 +42,7 @@ const addProduct = async (req, res, next) => {
       description,
       images,
       videos,
-      userId,
+      createdBy: userId,
       categoryId,
     });
     sendResponse(res, 200, product, 'success!');
@@ -54,13 +55,16 @@ const addProduct = async (req, res, next) => {
 const editProduct = async (req, res, next) => {
   try {
     let { title, description, images, videos, categoryId } = req?.body;
-    let { productId } = req?.params;
-    if (!productId || !title) throw new httpError(null, 400, {}, 'Insufficient Data');
+    let { id } = req?.params;
+    if (!id || !title) throw new httpError(null, 400, {}, 'Insufficient Data');
     if ((images && !Array.isArray(images)) || (videos && !Array.isArray(videos))) {
       throw new httpError(null, 400, {}, 'Bad Request');
     }
+
+    // todo - add checks as to who all can edit this
+
     let product = await Product.findOneAndUpdate(
-      { _id: productId },
+      { _id: id },
       {
         $set: {
           title,
@@ -74,6 +78,7 @@ const editProduct = async (req, res, next) => {
         new: true,
       },
     );
+    return sendResponse(res, 200, product, 'success!')
   } catch (err) {
     err.scope = err.scope || 'editProduct';
     next(err);
@@ -101,10 +106,38 @@ const deleteProduct = async (req, res, next) => {
   }
 };
 
+const createCategory = async (req, res, next) => {
+  try {
+    // todo - don't allow normal users to create category or if it is created then it has to be verified by admin
+    let { title, description } = req.body;
+    if (!title) throw new httpError(null, 400, {}, 'Insufficient Data');
+
+    // todo - check if the category already exists
+
+    const category = await Category.create({ title, description });
+    return sendResponse(res, 200, category, 'success!');
+  } catch (err) {
+    err.scope = err.scope || 'createCategory';
+    next(err);
+  }
+};
+
+const listCategories = async (req, res, next) => {
+  try {
+    const categories = await Category.find().lean().exec();
+    return sendResponse(res, 200, categories, 'success!');
+  } catch (err) {
+    err.scope = err.scope || 'listCategories';
+    next(err);
+  }
+};
+
 module.exports = {
   getAllProducts,
   getSingleProduct,
   addProduct,
   deleteProduct,
   editProduct,
+  createCategory,
+  listCategories,
 };

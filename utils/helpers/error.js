@@ -10,11 +10,11 @@ class httpError extends Error {
   }
 }
 
-const handleAppError = async({ err, scope= 'handleAppError', status, metadata= {}, log= null, ship= true, timezone }) => {
-  console.log("Error occured ", err)
+const handleAppError = async ({ err, scope = 'handleAppError', status, metadata = {}, log = null, ship = true, timezone }) => {
+  console.log('Error occured ', err);
 };
 
 module.exports = {
   httpError,
-  handleAppError
-}
+  handleAppError,
+};

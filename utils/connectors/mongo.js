@@ -11,16 +11,20 @@ const mongoOptions = {
   useNewUrlParser: true,
   useUnifiedTopology: true,
   maxPoolSize: 200,
-  keepAlive: true,
+  // keepAlive: true,
 };
-const dbUri = `mongodb://${DB.USERNAME}:${DB.PASSWORD}@${DB.URL}:${DB.PORT}/${DB.NAME}`;
+let dbUri = `mongodb://${DB.USERNAME}:${DB.PASSWORD}@${DB.URL}:${DB.PORT}/${DB.NAME}`;
+
+if(!DB.USERNAME && !DB.PASSWORD)
+  dbUri = `mongodb://${DB.URL}:${DB.PORT}/${DB.NAME}`;
 
 const conn = mongoose.createConnection(dbUri, mongoOptions, (err) => {
   if (err) {
     console.log('Unable to connect to database. Error: ', err);
   }
+  console.log('Database Connected Successfully!');
 });
 
 DB.MONGOOSE_CONN_OBJECT = conn;
 
-module.exports = DB;
+module.exports = { DB };
