@@ -5,7 +5,9 @@ app.use(express.json())
 const cors = require('cors')
 const reviewRoutes = require('./review')
 const productRoutes = require('./product')
-const userRoutes = require('./user') 
+const userRoutes = require('./user'); 
+const { sendResponse } = require('./utils/helpers/helper');
+const { handleAppError } = require('./utils/helpers/error');
 
 // todo - also make sure that some routes should be accessible without login
 // todo - add middleware for user authentication
@@ -31,6 +33,17 @@ app.use('/user', userRoutes)
 app.use('/', (req, res) => {
   res.send('Heyyy Server Started');
 });
+
+app.use((err, req, res, next) => {
+  try{
+    let status = err?.status || 500;
+    let data = err?.data || {};
+    let message = err?.description || err?.message ;
+    return sendResponse(res, status, data, message ?? '')
+  }catch(err){
+    handleAppError({err})
+  }
+})
 
 app.listen(process.env.PORT, () => {
   console.log('Server started on port ', process.env.PORT);
