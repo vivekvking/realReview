@@ -6,6 +6,9 @@ const reviewRoutes = require('./review')
 const productRoutes = require('./product')
 const userRoutes = require('./user') 
 
+// todo - also make sure that some routes should be accessible without login
+// todo - add middleware for user authentication
+
 app.use('/review', reviewRoutes)
 app.use('/product', productRoutes)
 app.use('/user', userRoutes)

@@ -15,6 +15,17 @@ const UserSchema = Schema(
     },
     email: {
       type: String,
+      required: true,
+      unique: true,
+    },
+    refreshToken: {
+      type: String,
+    },
+    accessToken: {
+      type: String,
+    },
+    salt: {
+      type: String,
     },
     referralId: {
       type: String,
@@ -24,6 +35,9 @@ const UserSchema = Schema(
     timestamps: true,
   },
 );
+
+UserSchema.index({ email: 1 });
+UserSchema.index({ username: 1 });
 
 const User = mongooseConn.model('user', UserSchema, 'user');
 
