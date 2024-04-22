@@ -9,9 +9,6 @@ const userRoutes = require('./user');
 const { sendResponse } = require('./utils/helpers/helper');
 const { handleAppError } = require('./utils/helpers/error');
 
-// todo - also make sure that some routes should be accessible without login
-// todo - add middleware for user authentication
-
 //CORS Setup
 const dynamicCORS = () => {
   const origin = process.env.PROJECT_ENV == 'dev' ? JSON.parse(process.env.CORS_ORIGIN).push('http://localhost:3000') : process.env.CORS_ORIGIN;

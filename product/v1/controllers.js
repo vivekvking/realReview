@@ -33,19 +33,17 @@ const getSingleProduct = async (req, res, next) => {
 
 const addProduct = async (req, res, next) => {
   try {
-    let { title, description, images, videos, categoryId, username } = req?.body;
+    let { title, description, images, videos, categoryId, username, userId } = req?.body;
     if (!title) throw new httpError(null, 400, {}, 'Insufficient Data');
     if ((images && !Array.isArray(images)) || (videos && !Array.isArray(videos))) {
       throw new httpError(null, 400, {}, 'Bad Request');
     }
-    let user = await User.findOne({ username }).lean().exec();
-    if (!user) throw new httpError(null, 404, {}, 'User not found');
     let product = await Product.create({
       title,
       description,
       images,
       videos,
-      createdBy: user._id,
+      createdBy: userId,
       categoryId,
     });
     sendResponse(res, 200, product, 'success!');

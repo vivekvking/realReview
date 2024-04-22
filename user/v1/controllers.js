@@ -17,9 +17,12 @@ const createUser = async (req, res, next) => {
     let genSalt = bcrypt.genSaltSync(SALT_ROUNDS);
     let salt = genSalt + SALT_ENV;
     let hashedPass = bcrypt.hashSync(password, salt);
-    let accessToken = jwt.sign({ username }, JWT_ACCESS_HASH_KEY, { expiresIn: '1h' });
-    let refreshToken = jwt.sign({ username }, JWT_REFRESH_HASH_KEY, { expiresIn: '30d' });
-    await User.create({ username, password: hashedPass, email, accessToken, refreshToken, salt: genSalt });
+    let user = await User.create({ username, password: hashedPass, email, salt: genSalt });
+    let accessToken = jwt.sign({ username, userId: user._id }, JWT_ACCESS_HASH_KEY, { expiresIn: '1h' });
+    let refreshToken = jwt.sign({ username, userId: user._id }, JWT_REFRESH_HASH_KEY, { expiresIn: '30d' });
+    user.accessToken = accessToken;
+    user.refreshToken = refreshToken;
+    await user.save();
     return sendResponse(res, 200, { username, accessToken, refreshToken }, 'success!');
   } catch (err) {
     err.scope = err.scope || 'createUser';
@@ -36,8 +39,8 @@ const loginUser = async (req, res, next) => {
     let salt = user.salt + SALT_ENV;
     let hashedPass = bcrypt.hashSync(password, salt);
     if (hashedPass != user.password) throw new httpError(null, 401, {}, 'Authentication Failed');
-    let accessToken = jwt.sign({ username: user.username }, JWT_ACCESS_HASH_KEY, { expiresIn: '1h' });
-    let refreshToken = jwt.sign({ username: user.username }, JWT_REFRESH_HASH_KEY, { expiresIn: '30d' });
+    let accessToken = jwt.sign({ username: user.username, userId: user._id }, JWT_ACCESS_HASH_KEY, { expiresIn: '1h' });
+    let refreshToken = jwt.sign({ username: user.username, userId: user._id }, JWT_REFRESH_HASH_KEY, { expiresIn: '30d' });
     user.accessToken = accessToken;
     user.refreshToken = refreshToken;
     await user.save();
