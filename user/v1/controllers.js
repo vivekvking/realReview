@@ -36,12 +36,12 @@ const loginUser = async (req, res, next) => {
     let salt = user.salt + SALT_ENV;
     let hashedPass = bcrypt.hashSync(password, salt);
     if (hashedPass != user.password) throw new httpError(null, 401, {}, 'Authentication Failed');
-    let accessToken = jwt.sign({ username }, JWT_ACCESS_HASH_KEY, { expiresIn: '1h' });
-    let refreshToken = jwt.sign({ username }, JWT_REFRESH_HASH_KEY, { expiresIn: '30d' });
+    let accessToken = jwt.sign({ username: user.username }, JWT_ACCESS_HASH_KEY, { expiresIn: '1h' });
+    let refreshToken = jwt.sign({ username: user.username }, JWT_REFRESH_HASH_KEY, { expiresIn: '30d' });
     user.accessToken = accessToken;
     user.refreshToken = refreshToken;
     await user.save();
-    return sendResponse(res, 200, { refreshToken, accessToken, username }, 'success!');
+    return sendResponse(res, 200, { refreshToken, accessToken, username: user.username }, 'success!');
   } catch (err) {
     err.scope = err.scope || 'loginUser';
     next(err);

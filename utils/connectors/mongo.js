@@ -15,8 +15,7 @@ const mongoOptions = {
 };
 let dbUri = `mongodb://${DB.USERNAME}:${DB.PASSWORD}@${DB.URL}:${DB.PORT}/${DB.NAME}`;
 
-if(!DB.USERNAME && !DB.PASSWORD)
-  dbUri = `mongodb://${DB.URL}:${DB.PORT}/${DB.NAME}`;
+if (!DB.USERNAME && !DB.PASSWORD) dbUri = `mongodb://${DB.URL}:${DB.PORT}/${DB.NAME}`;
 
 const conn = mongoose.createConnection(dbUri, mongoOptions, (err) => {
   if (err) {

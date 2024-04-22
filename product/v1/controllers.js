@@ -2,6 +2,7 @@ const Product = require('../../models/product');
 const { sendResponse } = require('../../utils/helpers/helper');
 const { httpError } = require('../../utils/helpers/error');
 const Category = require('../../models/category');
+const User = require('../../models/user');
 
 const getAllProducts = async (req, res, next) => {
   try {
@@ -32,17 +33,19 @@ const getSingleProduct = async (req, res, next) => {
 
 const addProduct = async (req, res, next) => {
   try {
-    let { title, description, images, videos, userId, categoryId } = req?.body;
-    if (!title || !userId) throw new httpError(null, 400, {}, 'Insufficient Data');
+    let { title, description, images, videos, categoryId, username } = req?.body;
+    if (!title) throw new httpError(null, 400, {}, 'Insufficient Data');
     if ((images && !Array.isArray(images)) || (videos && !Array.isArray(videos))) {
       throw new httpError(null, 400, {}, 'Bad Request');
     }
+    let user = await User.findOne({ username }).lean().exec();
+    if (!user) throw new httpError(null, 404, {}, 'User not found');
     let product = await Product.create({
       title,
       description,
       images,
       videos,
-      createdBy: userId,
+      createdBy: user._id,
       categoryId,
     });
     sendResponse(res, 200, product, 'success!');
@@ -78,7 +81,7 @@ const editProduct = async (req, res, next) => {
         new: true,
       },
     );
-    return sendResponse(res, 200, product, 'success!')
+    return sendResponse(res, 200, product, 'success!');
   } catch (err) {
     err.scope = err.scope || 'editProduct';
     next(err);
