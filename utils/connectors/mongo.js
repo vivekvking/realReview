@@ -5,6 +5,7 @@ const DB = {
   NAME: process.env.MONGO_DB,
   USERNAME: process.env.MONGO_USERNAME,
   PASSWORD: process.env.MONGO_PASSWORD,
+  URI: process.env.MONGO_URI,
 };
 
 const mongoOptions = {
@@ -13,9 +14,12 @@ const mongoOptions = {
   maxPoolSize: 200,
   // keepAlive: true,
 };
+
 let dbUri = `mongodb://${DB.USERNAME}:${DB.PASSWORD}@${DB.URL}:${DB.PORT}/${DB.NAME}`;
 
 if (!DB.USERNAME && !DB.PASSWORD) dbUri = `mongodb://${DB.URL}:${DB.PORT}/${DB.NAME}`;
+
+if(DB.URI) dbUri = DB.URI;
 
 const conn = mongoose.createConnection(dbUri, mongoOptions, (err) => {
   if (err) {
