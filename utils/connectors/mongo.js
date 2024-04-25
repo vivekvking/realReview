@@ -21,6 +21,7 @@ if (!DB.USERNAME && !DB.PASSWORD) dbUri = `mongodb://${DB.URL}:${DB.PORT}/${DB.N
 
 if(DB.URI) dbUri = DB.URI;
 
+console.log("Trying to Connect to DB ..............", dbUri)
 const conn = mongoose.createConnection(dbUri, mongoOptions, (err) => {
   if (err) {
     console.log('Unable to connect to database. Error: ', err);
