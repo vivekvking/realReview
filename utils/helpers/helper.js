@@ -55,7 +55,7 @@ const isAuthenticated = async (req, res, next) => {
     });
   } catch (err) {
     err.scope = err.scope || 'authentication';
-    throw err;
+    next(err);
   }
 };
 

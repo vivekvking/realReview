@@ -32,6 +32,7 @@ app.use('/', (req, res) => {
 
 app.use((err, req, res, next) => {
   try {
+    console.log("Error occured ", err)
     let status = err?.status || 500;
     let data = err?.data || {};
     let message = err?.description || err?.message;

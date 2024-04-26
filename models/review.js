@@ -12,11 +12,12 @@ const ReviewSchema = Schema(
     rating: {
       type: Number,
     },
-    product: {
+    productId: {
       type: Mongoose.Types.ObjectId,
       ref: 'product',
+      required: true,
     },
-    parent: {
+    parentId: {
       type: Mongoose.Types.ObjectId,
       ref: 'review',
     },
@@ -25,6 +26,18 @@ const ReviewSchema = Schema(
     },
     videos: {
       type: Array,
+    },
+    replyCount: {
+      type: Number,
+      default: 0,
+    },
+    userId: {
+      type: Mongoose.Types.ObjectId,
+      ref: 'user',
+      required: true,
+    },
+    username: {
+      type: String,
     },
   },
   {

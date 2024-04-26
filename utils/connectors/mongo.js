@@ -19,16 +19,16 @@ let dbUri = `mongodb://${DB.USERNAME}:${DB.PASSWORD}@${DB.URL}:${DB.PORT}/${DB.N
 
 if (!DB.USERNAME && !DB.PASSWORD) dbUri = `mongodb://${DB.URL}:${DB.PORT}/${DB.NAME}`;
 
-if(DB.URI) dbUri = DB.URI;
+if (DB.URI) dbUri = DB.URI;
 
-console.log("Trying to Connect to DB ..............", dbUri)
+console.log('Trying to Connect to DB ..............', dbUri);
 const conn = mongoose.createConnection(dbUri, mongoOptions, (err) => {
   if (err) {
     console.log('Unable to connect to database. Error: ', err);
   }
 });
 
-conn.on("connected", () => console.log("DB connected successfully"))
+conn.on('connected', () => console.log('DB connected successfully'));
 
 DB.MONGOOSE_CONN_OBJECT = conn;
 
