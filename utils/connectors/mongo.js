@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const DB = {
   URL: process.env.MONGO_HOST,
   PORT: process.env.MONGO_PORT,
-  NAME: process.env.MONGO_DB,
+  NAME: process.env.MONGO_DB ?? '',
   USERNAME: process.env.MONGO_USERNAME,
   PASSWORD: process.env.MONGO_PASSWORD,
   URI: process.env.MONGO_URI,
@@ -26,8 +26,9 @@ const conn = mongoose.createConnection(dbUri, mongoOptions, (err) => {
   if (err) {
     console.log('Unable to connect to database. Error: ', err);
   }
-  console.log('Database Connected Successfully!');
 });
+
+conn.on("connected", () => console.log("DB connected successfully"))
 
 DB.MONGOOSE_CONN_OBJECT = conn;
 
