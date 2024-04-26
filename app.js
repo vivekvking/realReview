@@ -1,6 +1,9 @@
 const express = require('express');
 const app = express();
+const morgan = require('morgan');
 require('dotenv').config();
+
+app.use(morgan('dev'))
 app.use(express.json());
 const cors = require('cors');
 const reviewRoutes = require('./review');
