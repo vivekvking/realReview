@@ -67,9 +67,9 @@ const editReview = async (req, res, next) => {
           videos,
         },
       },
-      { new: true}
+      { new: true },
     );
-    // todo - if some other user try to edit the comment then it won't edit it as it won't find that document 
+    // todo - if some other user try to edit the comment then it won't edit it as it won't find that document
     // todo - change the api response accordingly
     return sendResponse(res, 200, review, 'success!');
   } catch (err) {

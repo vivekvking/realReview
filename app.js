@@ -1,9 +1,11 @@
 const express = require('express');
 const app = express();
 const morgan = require('morgan');
+const helmet = require('helmet');
 require('dotenv').config();
 
-app.use(morgan('dev'))
+app.use(morgan('dev'));
+app.use(helmet());
 app.use(express.json());
 const cors = require('cors');
 const reviewRoutes = require('./review');
@@ -35,7 +37,7 @@ app.use('/', (req, res) => {
 
 app.use((err, req, res, next) => {
   try {
-    console.log("Error occured ", err)
+    console.log('Error occured ', err);
     let status = err?.status || 500;
     let data = err?.data || {};
     let message = err?.description || err?.message;
