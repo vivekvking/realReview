@@ -9,8 +9,6 @@ const DB = {
 };
 
 const mongoOptions = {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
   maxPoolSize: 200,
   // keepAlive: true,
 };
