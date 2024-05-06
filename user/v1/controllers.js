@@ -33,6 +33,7 @@ const createUser = async (req, res, next) => {
 const loginUser = async (req, res, next) => {
   try {
     const { username, email, password } = req.body;
+    if (!username && !email) throw new httpError(null, 400, {}, 'Bad request');
     let query = email ? { email } : { username };
     let user = await User.findOne(query).exec();
     if (!user) throw new httpError(null, 404, {}, 'User not found');
