@@ -15,7 +15,7 @@ const createUser = async (req, res, next) => {
     let isUnique = await validateUniqueUser(username, email);
     if (!isUnique) throw new httpError(null, 409, {}, 'username or email already exits');
     // todo - verify user
-    let verifyEmailRedirectUrl = `${APP_URL}/verify/${username}`;
+    let verifyEmailRedirectUrl = `${APP_URL}/user/v1/verify/${username}`;
     sendEmailTemplate({ to: email, subject: 'Verify Your Email', template: EMAIL_TEMPLATES.email_verification.name, variables: { username, verifyEmailRedirectUrl } });
 
     let genSalt = bcrypt.genSaltSync(SALT_ROUNDS);
