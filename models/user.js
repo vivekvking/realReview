@@ -18,6 +18,10 @@ const UserSchema = Schema(
       required: true,
       unique: true,
     },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
     refreshToken: {
       type: String,
     },

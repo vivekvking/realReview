@@ -3,4 +3,6 @@ module.exports = {
   SALT_ENV: process.env.SALT_CONSTANT,
   JWT_ACCESS_HASH_KEY: process.env.JWT_ACCESS_HASH_KEY,
   JWT_REFRESH_HASH_KEY: process.env.JWT_REFRESH_HASH_KEY,
+  MAIL_GUN_API_KEY: process.env.MAIL_GUN_API_KEY,
+  APP_URL: process.env.APP_URL,
 };

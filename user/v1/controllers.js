@@ -3,8 +3,10 @@ const jwt = require('jsonwebtoken');
 const User = require('../../models/user');
 const { httpError } = require('../../utils/helpers/error');
 const { sendResponse } = require('../../utils/helpers/helper');
-const { SALT_ENV, JWT_ACCESS_HASH_KEY, JWT_REFRESH_HASH_KEY, SALT_ROUNDS } = require('../../utils/constants/envConstants');
+const { SALT_ENV, JWT_ACCESS_HASH_KEY, JWT_REFRESH_HASH_KEY, SALT_ROUNDS, APP_URL } = require('../../utils/constants/envConstants');
 const { validateUniqueUser } = require('./helper');
+const { sendEmailTemplate } = require('../../utils/helpers/email');
+const { EMAIL_TEMPLATES } = require('../../utils/constants/constant');
 
 const createUser = async (req, res, next) => {
   try {
@@ -13,6 +15,8 @@ const createUser = async (req, res, next) => {
     let isUnique = await validateUniqueUser(username, email);
     if (!isUnique) throw new httpError(null, 409, {}, 'username or email already exits');
     // todo - verify user
+    let verifyEmailRedirectUrl = `${APP_URL}/verify/${username}`;
+    sendEmailTemplate({ to: email, subject: 'Verify Your Email', template: EMAIL_TEMPLATES.email_verification.name, variables: { username, verifyEmailRedirectUrl } });
 
     let genSalt = bcrypt.genSaltSync(SALT_ROUNDS);
     let salt = genSalt + SALT_ENV;
@@ -64,8 +68,23 @@ const checkValidUserName = async (req, res, next) => {
   }
 };
 
+const verifyEmail = async (req, res, next) => {
+  try {
+    let { username } = req.params;
+    if (!username) throw new httpError(null, 400, {}, 'Insufficient Data');
+    const user = await User.findOne({username});
+    if(!user) throw new httpError(null, 401, {}, 'Bad Request')
+    user.isVerified = true;
+    await user.save();    
+    return sendResponse(res, 200, {}, 'You Email is Verified Successfully');
+  } catch (err) {
+    err.scope = err.scope || 'checkValidUserName';
+  }
+}
+
 module.exports = {
   createUser,
   loginUser,
   checkValidUserName,
+  verifyEmail,
 };
