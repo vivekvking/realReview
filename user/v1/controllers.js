@@ -72,15 +72,16 @@ const verifyEmail = async (req, res, next) => {
   try {
     let { username } = req.params;
     if (!username) throw new httpError(null, 400, {}, 'Insufficient Data');
-    const user = await User.findOne({username});
-    if(!user) throw new httpError(null, 401, {}, 'Bad Request')
+    const user = await User.findOne({ username });
+    if (!user) throw new httpError(null, 401, {}, 'Bad Request');
     user.isVerified = true;
-    await user.save();    
+    await user.save();
     return sendResponse(res, 200, {}, 'You Email is Verified Successfully');
   } catch (err) {
     err.scope = err.scope || 'checkValidUserName';
+    next(err);
   }
-}
+};
 
 module.exports = {
   createUser,

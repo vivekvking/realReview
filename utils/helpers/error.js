@@ -14,7 +14,6 @@ const handleAppError = async ({ err, scope = 'handleAppError', status, metadata 
   console.log('Error occured ', err);
 
   // todo - add some error logging service here
-
 };
 
 module.exports = {

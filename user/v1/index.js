@@ -9,6 +9,6 @@ router.post('/login', loginUser);
 router.post('/validateUsername', checkValidUserName);
 
 // route to varify user email id after signup
-router.get('/verify/:username', verifyEmail)
+router.get('/verify/:username', verifyEmail);
 
 module.exports = router;
