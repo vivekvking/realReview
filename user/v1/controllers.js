@@ -56,6 +56,23 @@ const loginUser = async (req, res, next) => {
   }
 };
 
+const updateAccessToken = async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) throw new httpError(null, 400, {}, 'Bad Request');
+    jwt.verify(refreshToken, JWT_REFRESH_HASH_KEY, (err, decoded) => {
+      if (err) {
+        throw new httpError(null, 401, {}, 'Invalid Token');
+      }
+      let accessToken = jwt.sign({ username: decoded.username, userId: decoded.userId }, JWT_ACCESS_HASH_KEY, { expiresIn: '1h' });
+      return sendResponse(res, 200, { accessToken }, 'success');
+    });
+  } catch (err) {
+    err.scope = err.scope || 'updateAccessToken';
+    next(err);
+  }
+};
+
 const checkValidUserName = async (req, res, next) => {
   try {
     let { username } = req.body;
@@ -88,4 +105,5 @@ module.exports = {
   loginUser,
   checkValidUserName,
   verifyEmail,
+  updateAccessToken,
 };
