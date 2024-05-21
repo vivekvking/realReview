@@ -1,6 +1,16 @@
 const { Router } = require('express');
-const { getAllProducts, getSingleProduct, addProduct, deleteProduct, editProduct, createCategory, listCategories } = require('./controllers');
+const { getAllProducts, getSingleProduct, addProduct, deleteProduct, editProduct, createCategory, listCategories, uploadFile } = require('./controllers');
 const { isAuthenticated } = require('../../utils/helpers/helper');
+const multer = require('multer');
+const { ALLOWED_MIME_TYPES } = require('../../utils/constants/constant');
+const upload = multer({
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else cb(new Error('Invalid file type'));
+  },
+});
 const router = Router();
 
 //? get products
@@ -26,5 +36,8 @@ router.post('/category', isAuthenticated, createCategory);
 
 //? list categories
 router.get('/category', listCategories);
+
+//? file upload APi
+router.post('/uploadFile', upload.single('file'), uploadFile);
 
 module.exports = router;

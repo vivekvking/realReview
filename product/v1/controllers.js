@@ -3,6 +3,10 @@ const { sendResponse } = require('../../utils/helpers/helper');
 const { httpError } = require('../../utils/helpers/error');
 const Category = require('../../models/category');
 const User = require('../../models/user');
+const { PUBLIC_BUCKET_NAME } = require('../../utils/constants/envConstants');
+const { uploadFileToGCP } = require('../../utils/helpers/gcphelper');
+const moment = require('moment');
+const { v4: uuidv4 } = require('uuid');
 
 const getAllProducts = async (req, res, next) => {
   try {
@@ -133,6 +137,23 @@ const listCategories = async (req, res, next) => {
   }
 };
 
+const uploadFile = async (req, res, next) => {
+  try {
+    if (!req.file) throw new httpError(null, 400, {}, 'Insufficient Data');
+    let bufferData = req.file?.buffer;
+    let date = moment().format('YYYY-MM-DD');
+    let destination = `products/${date}/${uuidv4()}_${req.file?.originalname.replaceAll(' ', '_')}`;
+    let mimetype = req.file?.mimetype;
+    const bucketName = PUBLIC_BUCKET_NAME;
+
+    let public_url = await uploadFileToGCP(bucketName, destination, bufferData, mimetype);
+    return sendResponse(res, 200, { public_url }, 'success!');
+  } catch (err) {
+    err.scope = err.scope || 'uploadFile';
+    next(err);
+  }
+};
+
 module.exports = {
   getAllProducts,
   getSingleProduct,
@@ -141,4 +162,5 @@ module.exports = {
   editProduct,
   createCategory,
   listCategories,
+  uploadFile,
 };
