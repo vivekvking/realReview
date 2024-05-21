@@ -139,15 +139,20 @@ const listCategories = async (req, res, next) => {
 
 const uploadFile = async (req, res, next) => {
   try {
-    if (!req.file) throw new httpError(null, 400, {}, 'Insufficient Data');
-    let bufferData = req.file?.buffer;
-    let date = moment().format('YYYY-MM-DD');
-    let destination = `products/${date}/${uuidv4()}_${req.file?.originalname.replaceAll(' ', '_')}`;
-    let mimetype = req.file?.mimetype;
-    const bucketName = PUBLIC_BUCKET_NAME;
+    if (!req.files || req.files.length == 0) throw new httpError(null, 400, {}, 'Insufficient Data');
+    let promises = [];
+    for (let file of req.files) {
+      let bufferData = file?.buffer;
+      let date = moment().format('YYYY-MM-DD');
+      let destination = `products/${date}/${uuidv4()}_${file?.originalname.replaceAll(' ', '_')}`;
+      let mimetype = file?.mimetype;
+      const bucketName = PUBLIC_BUCKET_NAME;
 
-    let public_url = await uploadFileToGCP(bucketName, destination, bufferData, mimetype);
-    return sendResponse(res, 200, { public_url }, 'success!');
+      let public_url = uploadFileToGCP(bucketName, destination, bufferData, mimetype);
+      promises.push(public_url)
+    }
+    let public_urls = await Promise.all(promises)
+    return sendResponse(res, 200, { url: public_urls }, 'success!');
   } catch (err) {
     err.scope = err.scope || 'uploadFile';
     next(err);
