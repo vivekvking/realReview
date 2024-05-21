@@ -38,6 +38,6 @@ router.post('/category', isAuthenticated, createCategory);
 router.get('/category', listCategories);
 
 //? file upload APi
-router.post('/uploadFile', upload.array('file', 10), uploadFile);
+router.post('/uploadFile', isAuthenticated, upload.array('file', 10), uploadFile);
 
 module.exports = router;
