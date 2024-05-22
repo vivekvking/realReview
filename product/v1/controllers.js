@@ -149,9 +149,9 @@ const uploadFile = async (req, res, next) => {
       const bucketName = PUBLIC_BUCKET_NAME;
 
       let public_url = uploadFileToGCP(bucketName, destination, bufferData, mimetype);
-      promises.push(public_url)
+      promises.push(public_url);
     }
-    let public_urls = await Promise.all(promises)
+    let public_urls = await Promise.all(promises);
     return sendResponse(res, 200, { url: public_urls }, 'success!');
   } catch (err) {
     err.scope = err.scope || 'uploadFile';

@@ -7,6 +7,8 @@ const { SALT_ENV, JWT_ACCESS_HASH_KEY, JWT_REFRESH_HASH_KEY, SALT_ROUNDS, APP_UR
 const { validateUniqueUser } = require('./helper');
 const { sendEmailTemplate } = require('../../utils/helpers/email');
 const { EMAIL_TEMPLATES } = require('../../utils/constants/constant');
+const Product = require('../../models/product');
+const Review = require('../../models/review');
 
 const createUser = async (req, res, next) => {
   try {
@@ -100,10 +102,28 @@ const verifyEmail = async (req, res, next) => {
   }
 };
 
+const activity = async (req, res, next) => {
+  try {
+    const { activityType, userId, username } = req?.body;
+    const { skip = 0, limit = 5 } = req?.query;
+    if (!activityType) throw new httpError(null, 400, {}, 'Insufficient Data');
+    let activity;
+    if (activityType == 'post') {
+      activity = await Product.find({ createdBy: userId }).sort({ _id: -1 }).skip(skip).limit(limit).lean();
+    } else if (activityType == 'comment') {
+      activity = await Review.find({ userId: userId }).sort({ _id: -1 }).skip(skip).limit(limit).lean();
+    }
+    return sendResponse(res, 200, activity, 'success!');
+  } catch (err) {
+    (err.scope = err.scope || 'activity'), next(err);
+  }
+};
+
 module.exports = {
   createUser,
   loginUser,
   checkValidUserName,
   verifyEmail,
   updateAccessToken,
+  activity,
 };

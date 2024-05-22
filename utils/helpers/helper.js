@@ -49,6 +49,7 @@ const isAuthenticated = async (req, res, next) => {
       if (err) {
         throw new httpError(null, 401, {}, 'Invalid Token');
       }
+      if (!req.body) req.body = {};
       req.body.username = decoded.username;
       req.body.userId = decoded.userId;
       next();
