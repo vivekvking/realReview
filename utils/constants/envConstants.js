@@ -7,4 +7,6 @@ module.exports = {
   APP_URL: process.env.APP_URL,
   PUBLIC_BUCKET_NAME: process.env.PUBLIC_BUCKET_NAME,
   SERVICE_ACCOUNT_CREDENTIALS: process.env.SERVICE_ACCOUNT_CREDENTIALS,
+  GMAIL_ID: process.env.GMAIL_ID,
+  GMAIL_PASS: process.env.GMAIL_PASS,
 };

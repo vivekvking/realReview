@@ -5,8 +5,8 @@ const { httpError } = require('../../utils/helpers/error');
 const { sendResponse } = require('../../utils/helpers/helper');
 const { SALT_ENV, JWT_ACCESS_HASH_KEY, JWT_REFRESH_HASH_KEY, SALT_ROUNDS, APP_URL } = require('../../utils/constants/envConstants');
 const { validateUniqueUser } = require('./helper');
-const { sendEmailTemplate } = require('../../utils/helpers/email');
-const { EMAIL_TEMPLATES } = require('../../utils/constants/constant');
+const { sendEmailTemplateViaMailgun, sendMailViaGmail } = require('../../utils/helpers/email');
+const { EMAIL_TEMPLATES, NODEMAILER_EMAIL_TEMPLATES } = require('../../utils/constants/constant');
 const Product = require('../../models/product');
 const Review = require('../../models/review');
 
@@ -17,8 +17,9 @@ const createUser = async (req, res, next) => {
     let isUnique = await validateUniqueUser(username, email);
     if (!isUnique) throw new httpError(null, 409, {}, 'username or email already exits');
     // todo - verify user
-    let verifyEmailRedirectUrl = `${APP_URL}/user/v1/verify/${username}`;
-    sendEmailTemplate({ to: email, subject: 'Verify Your Email', template: EMAIL_TEMPLATES.email_verification.name, variables: { username, verifyEmailRedirectUrl } });
+    let redirectUrl = `${APP_URL}/user/v1/verify/${username}`;
+    // sendEmailTemplateViaMailgun({ to: email, subject: 'Verify Your Email', template: EMAIL_TEMPLATES.email_verification.name, variables: { username, verifyEmailRedirectUrl } });
+    sendMailViaGmail({ to: email, subject: 'Verify Your Email', templateName: NODEMAILER_EMAIL_TEMPLATES.email_verification.name, variables: { username, redirectUrl } });
 
     let genSalt = bcrypt.genSaltSync(SALT_ROUNDS);
     let salt = genSalt + SALT_ENV;
