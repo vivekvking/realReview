@@ -2,9 +2,17 @@ const express = require('express');
 const app = express();
 const morgan = require('morgan');
 const helmet = require('helmet');
+const {rateLimit} = require('express-rate-limit')
 require('dotenv').config();
 
 app.use(morgan('dev'));
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 100,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: "Rate limit exceeded",
+}))
 app.use(helmet());
 app.use(express.json());
 const cors = require('cors');
