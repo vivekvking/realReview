@@ -36,9 +36,6 @@ const ReviewSchema = Schema(
       ref: 'user',
       required: true,
     },
-    username: {
-      type: String,
-    },
   },
   {
     timestamps: true,

@@ -34,6 +34,9 @@ const UserSchema = Schema(
     referralId: {
       type: String,
     },
+    profilePic: {
+      type: String,
+    },
   },
   {
     timestamps: true,

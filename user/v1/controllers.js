@@ -12,24 +12,25 @@ const Review = require('../../models/review');
 
 const createUser = async (req, res, next) => {
   try {
-    const { username, password, email } = req.body;
+    const { username, password, email, profilePic } = req.body;
     if (!username || !password || !email) throw new httpError(null, 400, {}, 'Insufficient Data');
     let isUnique = await validateUniqueUser(username, email);
     if (!isUnique) throw new httpError(null, 409, {}, 'username or email already exits');
-    // todo - verify user
-    let redirectUrl = `${APP_URL}/user/v1/verify/${username}`;
-    // sendEmailTemplateViaMailgun({ to: email, subject: 'Verify Your Email', template: EMAIL_TEMPLATES.email_verification.name, variables: { username, verifyEmailRedirectUrl } });
-    sendMailViaGmail({ to: email, subject: 'Verify Your Email', templateName: NODEMAILER_EMAIL_TEMPLATES.email_verification.name, variables: { username, redirectUrl } });
-
     let genSalt = bcrypt.genSaltSync(SALT_ROUNDS);
     let salt = genSalt + SALT_ENV;
     let hashedPass = bcrypt.hashSync(password, salt);
-    let user = await User.create({ username, password: hashedPass, email, salt: genSalt });
+    let user = await User.create({ username, password: hashedPass, email, salt: genSalt, profilePic: profilePic });
     let accessToken = jwt.sign({ username, userId: user._id }, JWT_ACCESS_HASH_KEY, { expiresIn: '1h' });
     let refreshToken = jwt.sign({ username, userId: user._id }, JWT_REFRESH_HASH_KEY, { expiresIn: '30d' });
     user.accessToken = accessToken;
     user.refreshToken = refreshToken;
     await user.save();
+
+    // todo - verify user
+    let redirectUrl = `${APP_URL}/user/v1/verify/${username}`;
+    // sendEmailTemplateViaMailgun({ to: email, subject: 'Verify Your Email', template: EMAIL_TEMPLATES.email_verification.name, variables: { username, verifyEmailRedirectUrl } });
+    sendMailViaGmail({ to: email, subject: 'Verify Your Email', templateName: NODEMAILER_EMAIL_TEMPLATES.email_verification.name, variables: { username, redirectUrl } });
+
     return sendResponse(res, 200, { username, accessToken, refreshToken }, 'success!');
   } catch (err) {
     err.scope = err.scope || 'createUser';

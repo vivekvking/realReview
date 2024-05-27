@@ -7,10 +7,10 @@ const getReviewOfSingleProduct = async (req, res, next) => {
     let { productId } = req?.params;
     let { skip = 0, limit = 20 } = req?.query;
     if (!productId) throw new httpError(null, 400, {}, 'Product id missing');
-    // todo - add one extra field in each review as to how many comments are under it
     let reviews = await Review.find({ productId: productId, parentId: { $exists: false } })
       .skip(skip)
       .limit(limit)
+      .populate('userId', 'username profilePic')
       .lean()
       .exec();
     sendResponse(res, 200, reviews, 'Success!');
@@ -24,7 +24,7 @@ const getCommentsOnReview = async (req, res, next) => {
   try {
     let { productId, reviewId } = req.params;
     let { skip = 0, limit = 10 } = req.query;
-    let comments = await Review.find({ productId, parentId: reviewId }).skip(skip).limit(limit).lean().exec();
+    let comments = await Review.find({ productId, parentId: reviewId }).skip(skip).limit(limit).populate('userId', 'username profilePic').lean().exec();
     sendResponse(res, 200, comments, 'Success!');
   } catch (err) {
     err.scope = err.scope || 'getCommentsOnReview';
@@ -37,7 +37,7 @@ const addReview = async (req, res, next) => {
     let { productId, comment, rating, images, videos, reviewId, username, userId } = req.body;
     let review;
     if (reviewId) {
-      review = await Review.create({ comment, productId, images, videos, userId, username, parentId: reviewId });
+      review = await Review.create({ comment, productId, images, videos, userId, parentId: reviewId });
       await Review.updateOne(
         { _id: reviewId },
         {
@@ -46,7 +46,7 @@ const addReview = async (req, res, next) => {
           },
         },
       );
-    } else review = await Review.create({ comment, rating, productId, images, videos, userId, username });
+    } else review = await Review.create({ comment, rating, productId, images, videos, userId });
     return sendResponse(res, 200, review, 'success!');
   } catch (err) {
     err.scope = err.scope || 'addReveiw';
