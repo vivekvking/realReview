@@ -37,22 +37,22 @@ const addReview = async (req, res, next) => {
   try {
     let { productId, comment, rating, images, videos, reviewId, username, userId } = req.body;
     let review;
-    let product = await Product.find({ _id: productId });
+    let product = await Product.findOne({ _id: productId });
     if (!product) throw new httpError(null, 404, {}, 'Product not found!');
     if (reviewId) {
       const parentReview = await Review.findOne({ _id: reviewId });
       if (!parentReview) throw new httpError(null, 404, {}, 'Review not found!');
       review = await Review.create({ comment, productId, images, videos, userId, parentId: reviewId });
-      parentReview.replyCount++;
+      parentReview.replyCount = product.replyCount || 0 + 1;
       parentReview.save();
-      product.totalReplies = product.totalReplies + 1;
+      product.totalReplies = product.totalReplies || 0 + 1;
       product.save();
     } else {
       review = await Review.create({ comment, rating, productId, images, videos, userId });
 
       // todo - update the average rating counting process when site visitors increase
-      let totalRating = product.totalRating + rating;
-      let totalReviews = product.totalReviews + 1;
+      let totalRating = product.totalRating || 0 + rating;
+      let totalReviews = product.totalReviews || 0 + 1;
       let averageRating = (totalRating / totalReviews).toFixed(2);
       product.totalRating = totalRating;
       product.totalReviews = totalReviews;
