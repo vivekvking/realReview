@@ -30,6 +30,18 @@ const ProductSchema = Schema(
     isDeleted: {
       type: Boolean,
     },
+    totalRating: {
+      type: Object,
+    },
+    averageRating: {
+      type: Number,
+    },
+    totalReviews: {
+      type: Number,
+    },
+    totalReplies: {
+      type: Number,
+    },
   },
   {
     timestamps: true,

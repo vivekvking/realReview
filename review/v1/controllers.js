@@ -1,6 +1,7 @@
 const Review = require('../../models/review');
 const { sendResponse } = require('../../utils/helpers/helper');
 const { httpError } = require('../../utils/helpers/error');
+const Product = require('../../models/product');
 
 const getReviewOfSingleProduct = async (req, res, next) => {
   try {
@@ -36,17 +37,28 @@ const addReview = async (req, res, next) => {
   try {
     let { productId, comment, rating, images, videos, reviewId, username, userId } = req.body;
     let review;
+    let product = await Product.find({ _id: productId });
+    if (!product) throw new httpError(null, 404, {}, 'Product not found!');
     if (reviewId) {
+      const parentReview = await Review.findOne({ _id: reviewId });
+      if (!parentReview) throw new httpError(null, 404, {}, 'Review not found!');
       review = await Review.create({ comment, productId, images, videos, userId, parentId: reviewId });
-      await Review.updateOne(
-        { _id: reviewId },
-        {
-          $inc: {
-            replyCount: 1,
-          },
-        },
-      );
-    } else review = await Review.create({ comment, rating, productId, images, videos, userId });
+      parentReview.replyCount++;
+      parentReview.save();
+      product.totalReplies = product.totalReplies + 1;
+      product.save();
+    } else {
+      review = await Review.create({ comment, rating, productId, images, videos, userId });
+
+      // todo - update the average rating counting process when site visitors increase
+      let totalRating = product.totalRating + rating;
+      let totalReviews = product.totalReviews + 1;
+      let averageRating = (totalRating / totalReviews).toFixed(2);
+      product.totalRating = totalRating;
+      product.totalReviews = totalReviews;
+      product.averageRating = averageRating;
+      product.save();
+    }
     return sendResponse(res, 200, review, 'success!');
   } catch (err) {
     err.scope = err.scope || 'addReveiw';
