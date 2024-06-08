@@ -1,9 +1,12 @@
 const Axios = require('axios');
 const _ = require('lodash');
+const cron = require('node-cron');
 const jwt = require('jsonwebtoken');
 const User = require('../../models/user');
-const { httpError } = require('./error');
+const { httpError, handleAppError } = require('./error');
 const { JWT_ACCESS_HASH_KEY } = require('../constants/envConstants');
+const { generateAIReview } = require('../utility');
+const Product = require('../../models/product');
 
 const sendResponse = (res, statusCode, data = {}, message = '') => {
   try {
@@ -57,6 +60,25 @@ const isAuthenticated = async (req, res, next) => {
   } catch (err) {
     err.scope = err.scope || 'authentication';
     next(err);
+  }
+};
+
+//? AI review scheduler
+cron.schedule('0 0 * * * ', () => {
+  console.log('Job triggered');
+  aiReviewScheduler();
+});
+
+const aiReviewScheduler = async () => {
+  try {
+    console.log('AI REVIEW SCHEDULER TRIGGERED ..................................................');
+    // todo - fetch all the product Ids that should be processed
+    const products = await Product.find().lean();
+    for (let product of products) await generateAIReview(product._id);
+    console.log('AI REVIEW CREATION COMPLETED ....................................................');
+  } catch (err) {
+    err.scope = err.scope || 'aiReviewScheduler';
+    handleAppError({ err });
   }
 };
 

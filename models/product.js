@@ -42,6 +42,9 @@ const ProductSchema = Schema(
     totalReplies: {
       type: Number,
     },
+    aiGeneratedReview: {
+      type: String,
+    },
   },
   {
     timestamps: true,
