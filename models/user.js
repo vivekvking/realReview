@@ -43,8 +43,8 @@ const UserSchema = Schema(
   },
 );
 
-UserSchema.index({ email: 1 });
-UserSchema.index({ username: 1 });
+// UserSchema.index({ email: 1 });
+// UserSchema.index({ username: 1 });
 
 const User = mongooseConn.model('user', UserSchema, 'user');
 
