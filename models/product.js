@@ -27,6 +27,10 @@ const ProductSchema = Schema(
       type: Mongoose.Types.ObjectId,
       ref: 'category',
     },
+    categoryId: {
+      type: Mongoose.Types.ObjectId,
+      ref: 'category',
+    },
     isDeleted: {
       type: Boolean,
     },
@@ -50,6 +54,20 @@ const ProductSchema = Schema(
     timestamps: true,
   },
 );
+
+// Set toJSON option to include virtuals
+ProductSchema.set('toJSON', { virtuals: true });
+ProductSchema.set('toObject', { virtuals: true });
+
+// Pre-save middleware to sync category with categoryId
+ProductSchema.pre('save', function(next) {
+  if (this.category && !this.categoryId) {
+    this.categoryId = this.category;
+  } else if (this.categoryId && !this.category) {
+    this.category = this.categoryId;
+  }
+  next();
+});
 
 const Product = mongooseConn.model('product', ProductSchema, 'product');
 

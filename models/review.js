@@ -21,6 +21,10 @@ const ReviewSchema = Schema(
       type: Mongoose.Types.ObjectId,
       ref: 'review',
     },
+    reviewId: {
+      type: Mongoose.Types.ObjectId,
+      ref: 'review',
+    },
     images: {
       type: Array,
     },
@@ -41,6 +45,18 @@ const ReviewSchema = Schema(
     timestamps: true,
   },
 );
+
+ReviewSchema.set('toJSON', { virtuals: true });
+ReviewSchema.set('toObject', { virtuals: true });
+
+ReviewSchema.pre('save', function(next) {
+  if (this.parentId && !this.reviewId) {
+    this.reviewId = this.parentId;
+  } else if (this.reviewId && !this.parentId) {
+    this.parentId = this.reviewId;
+  }
+  next();
+});
 
 ReviewSchema.index({ productId: 1, parent: 1 });
 const Review = mongooseConn.model('review', ReviewSchema, 'review');

@@ -52,13 +52,20 @@ const isAuthenticated = async (req, res, next) => {
       if (err) {
         throw new httpError(null, 401, {}, 'Invalid Token');
       }
+      
+      // Set user info directly on the request object
+      req.username = decoded.username;
+      req.userId = decoded.userId;
+      
+      // Also set in body for backward compatibility
       if (!req.body) req.body = {};
       req.body.username = decoded.username;
       req.body.userId = decoded.userId;
+      
       next();
     });
   } catch (err) {
-    err.scope = err.scope || 'authentication';
+    err.scope = err.scope || 'isAuthenticated';
     next(err);
   }
 };

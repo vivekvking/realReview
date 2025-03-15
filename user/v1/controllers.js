@@ -107,24 +107,166 @@ const verifyEmail = async (req, res, next) => {
 
 const activity = async (req, res, next) => {
   try {
-    const { activityType, userId, username } = req?.body;
-    const { skip = 0, limit = 5 } = req?.query;
+    const { activityType } = req?.body;
+    const userId = req.userId; // This comes from the isAuthenticated middleware
+    const { skip = 0, limit = 10 } = req?.query;
+    
     if (!activityType) throw new httpError(null, 400, {}, 'Insufficient Data');
-    let activity;
-    if (activityType == 'post') {
-      activity = await Product.find({ createdBy: userId }).sort({ _id: -1 }).skip(skip).limit(limit).lean();
-    } else if (activityType == 'comment') {
-      activity = await Review.find({ userId: userId }).sort({ _id: -1 }).skip(skip).limit(limit).lean();
+    if (!userId) throw new httpError(null, 401, {}, 'Unauthorized');
+    
+    let activity = [];
+    
+    try {
+      if (activityType === 'post') {
+        // Get products created by the user
+        activity = await Product.find({ createdBy: userId })
+          .populate({ path: 'category', strictPopulate: false })
+          .sort({ createdAt: -1 })
+          .skip(parseInt(skip))
+          .limit(parseInt(limit))
+          .lean();
+          
+        // Add review count and average rating to each product
+        for (let product of activity) {
+          const reviews = await Review.find({ 
+            productId: product._id,
+            parentId: { $exists: false } // Only count top-level reviews, not comments
+          });
+          
+          product.reviewCount = reviews.length;
+          
+          if (reviews.length > 0) {
+            const totalRating = reviews.reduce((sum, review) => sum + (review.rating || 0), 0);
+            product.avgRating = totalRating / reviews.length;
+          } else {
+            product.avgRating = 0;
+          }
+          
+          // Ensure both category and categoryId are set
+          if (product.category && !product.categoryId) {
+            product.categoryId = product.category;
+          } else if (product.categoryId && !product.category) {
+            product.category = product.categoryId;
+          }
+        }
+      } else if (activityType === 'review') {
+        // Get reviews created by the user (not comments)
+        activity = await Review.find({ 
+          userId: userId,
+          parentId: { $exists: false } // Only get top-level reviews, not comments
+        })
+          .populate({ path: 'productId', strictPopulate: false })
+          .sort({ createdAt: -1 })
+          .skip(parseInt(skip))
+          .limit(parseInt(limit))
+          .lean();
+          
+        // Add type field to indicate these are reviews
+        activity = activity.map(item => ({
+          ...item,
+          type: 'review'
+        }));
+      } else if (activityType === 'comment') {
+        // Get comments created by the user
+        activity = await Review.find({ 
+          userId: userId,
+          parentId: { $exists: true } // Only get comments (which have a parentId)
+        })
+          .populate({ path: 'productId', strictPopulate: false })
+          .populate({ path: 'parentId', strictPopulate: false })
+          .sort({ createdAt: -1 })
+          .skip(parseInt(skip))
+          .limit(parseInt(limit))
+          .lean();
+          
+        // Add type field to indicate these are comments and ensure reviewId is set
+        activity = activity.map(item => {
+          // Ensure reviewId is set (for backward compatibility)
+          if (item.parentId && !item.reviewId) {
+            item.reviewId = item.parentId;
+          }
+          
+          return {
+            ...item,
+            type: 'comment'
+          };
+        });
+      } else if (activityType === 'all') {
+        // Get all activity (products, reviews, and comments)
+        const products = await Product.find({ createdBy: userId })
+          .populate({ path: 'category', strictPopulate: false })
+          .sort({ createdAt: -1 })
+          .limit(parseInt(limit) / 3) // Divide limit among the three types
+          .lean()
+          .then(products => products.map(p => {
+            // Ensure both category and categoryId are set
+            if (p.category && !p.categoryId) {
+              p.categoryId = p.category;
+            } else if (p.categoryId && !p.category) {
+              p.category = p.categoryId;
+            }
+            
+            return {
+              ...p, 
+              type: 'product'
+            };
+          }));
+          
+        const reviews = await Review.find({ 
+          userId: userId,
+          parentId: { $exists: false }
+        })
+          .populate({ path: 'productId', strictPopulate: false })
+          .sort({ createdAt: -1 })
+          .limit(parseInt(limit) / 3)
+          .lean()
+          .then(reviews => reviews.map(r => ({
+            ...r, 
+            type: 'review'
+          })));
+          
+        const comments = await Review.find({ 
+          userId: userId,
+          parentId: { $exists: true }
+        })
+          .populate({ path: 'productId', strictPopulate: false })
+          .populate({ path: 'parentId', strictPopulate: false })
+          .sort({ createdAt: -1 })
+          .limit(parseInt(limit) / 3)
+          .lean()
+          .then(comments => comments.map(c => {
+            // Ensure reviewId is set (for backward compatibility)
+            if (c.parentId && !c.reviewId) {
+              c.reviewId = c.parentId;
+            }
+            
+            return {
+              ...c, 
+              type: 'comment'
+            };
+          }));
+          
+        // Combine all activity and sort by createdAt
+        activity = [...products, ...reviews, ...comments]
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+          .slice(0, parseInt(limit));
+      }
+    } catch (err) {
+      console.error(`Error in activity controller (${activityType}):`, err);
+      // Continue with empty activity array instead of failing completely
+      activity = [];
     }
+    
     return sendResponse(res, 200, activity, 'success!');
   } catch (err) {
-    (err.scope = err.scope || 'activity'), next(err);
+    err.scope = err.scope || 'activity';
+    next(err);
   }
 };
 
 const getUserProfile = async (req, res, next) => {
   try {
-    const {userId} = req?.body;
+    const userId = req.userId; // This comes from the isAuthenticated middleware
     if (!userId) throw new httpError(null, 401, {}, 'Unauthorized');
     
     const user = await User.findById(userId).select('username email profilePic isVerified');
@@ -137,6 +279,81 @@ const getUserProfile = async (req, res, next) => {
   }
 };
 
+const getAllUserActivity = async (req, res, next) => {
+  try {
+    const userId = req.userId; // This comes from the isAuthenticated middleware
+    const { skip = 0, limit = 20 } = req?.query;
+    
+    if (!userId) throw new httpError(null, 401, {}, 'Unauthorized');
+    
+    // Get products created by the user
+    const products = await Product.find({ createdBy: userId })
+      .populate({ path: 'category', strictPopulate: false })
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit) / 3) // Divide limit among the three types
+      .lean()
+      .then(products => products.map(p => {
+        // Ensure both category and categoryId are set
+        if (p.category && !p.categoryId) {
+          p.categoryId = p.category;
+        } else if (p.categoryId && !p.category) {
+          p.category = p.categoryId;
+        }
+        
+        return {
+          ...p, 
+          type: 'product'
+        };
+      }));
+      
+    // Get reviews created by the user (not comments)
+    const reviews = await Review.find({ 
+      userId: userId,
+      parentId: { $exists: false }
+    })
+      .populate({ path: 'productId', strictPopulate: false })
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit) / 3)
+      .lean()
+      .then(reviews => reviews.map(r => ({
+        ...r, 
+        type: 'review'
+      })));
+      
+    // Get comments created by the user
+    const comments = await Review.find({ 
+      userId: userId,
+      parentId: { $exists: true }
+    })
+      .populate({ path: 'productId', strictPopulate: false })
+      .populate({ path: 'parentId', strictPopulate: false })
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit) / 3)
+      .lean()
+      .then(comments => comments.map(c => {
+        // Ensure reviewId is set (for backward compatibility)
+        if (c.parentId && !c.reviewId) {
+          c.reviewId = c.parentId;
+        }
+        
+        return {
+          ...c, 
+          type: 'comment'
+        };
+      }));
+      
+    // Combine all activity and sort by createdAt
+    const allActivity = [...products, ...reviews, ...comments]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, parseInt(limit));
+    
+    return sendResponse(res, 200, allActivity, 'success!');
+  } catch (err) {
+    err.scope = err.scope || 'getAllUserActivity';
+    next(err);
+  }
+};
+
 module.exports = {
   createUser,
   loginUser,
@@ -145,4 +362,5 @@ module.exports = {
   updateAccessToken,
   activity,
   getUserProfile,
+  getAllUserActivity,
 };
