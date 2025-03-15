@@ -43,10 +43,10 @@ const addReview = async (req, res, next) => {
       const parentReview = await Review.findOne({ _id: reviewId });
       if (!parentReview) throw new httpError(null, 404, {}, 'Review not found!');
       review = await Review.create({ comment, productId, images, videos, userId, parentId: reviewId });
-      parentReview.replyCount = (product?.replyCount ?? 0) + 1;
-      parentReview.save();
+      parentReview.replyCount = (parentReview.replyCount || 0) + 1;
+      await parentReview.save();
       product.totalReplies = (product?.totalReplies ?? 0) + 1;
-      product.save();
+      await product.save();
     } else {
       review = await Review.create({ comment, rating, productId, images, videos, userId });
 
@@ -57,7 +57,7 @@ const addReview = async (req, res, next) => {
       product.totalRating = totalRating;
       product.totalReviews = totalReviews;
       product.averageRating = averageRating;
-      product.save();
+      await product.save();
     }
     return sendResponse(res, 200, review, 'success!');
   } catch (err) {
