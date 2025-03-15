@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { createUser, loginUser, checkValidUserName, verifyEmail, updateAccessToken, activity } = require('./controllers');
+const { createUser, loginUser, checkValidUserName, verifyEmail, updateAccessToken, activity, getUserProfile } = require('./controllers');
 const { isAuthenticated } = require('../../utils/helpers/helper');
 const router = Router();
 
@@ -17,5 +17,8 @@ router.get('/verify/:username', verifyEmail);
 
 //? get user's activity
 router.post('/activity', isAuthenticated, activity);
+
+// get user profile
+router.get('/profile', isAuthenticated, getUserProfile);
 
 module.exports = router;

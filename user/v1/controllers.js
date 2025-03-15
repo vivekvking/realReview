@@ -29,9 +29,9 @@ const createUser = async (req, res, next) => {
     // todo - verify user
     let redirectUrl = `${APP_URL}/user/v1/verify/${username}`;
     // sendEmailTemplateViaMailgun({ to: email, subject: 'Verify Your Email', template: EMAIL_TEMPLATES.email_verification.name, variables: { username, verifyEmailRedirectUrl } });
-    sendMailViaGmail({ to: email, subject: 'Verify Your Email', templateName: NODEMAILER_EMAIL_TEMPLATES.email_verification.name, variables: { username, redirectUrl } });
+    // sendMailViaGmail({ to: email, subject: 'Verify Your Email', templateName: NODEMAILER_EMAIL_TEMPLATES.email_verification.name, variables: { username, redirectUrl } });
 
-    return sendResponse(res, 200, { username, accessToken, refreshToken }, 'success!');
+    return sendResponse(res, 200, { username, accessToken, refreshToken, redirectUrl }, 'success!');
   } catch (err) {
     err.scope = err.scope || 'createUser';
     next(err);
@@ -81,11 +81,12 @@ const checkValidUserName = async (req, res, next) => {
   try {
     let { username } = req.body;
     if (!username) throw new httpError(null, 400, {}, 'Insufficient Data');
-    let count = await User.find({ username }).count();
+    let count = await User.countDocuments({ username });
     if (count > 0) return sendResponse(res, 409, {}, 'Already exists');
     return sendResponse(res, 200, {}, 'success!');
   } catch (err) {
     err.scope = err.scope || 'checkValidUserName';
+    next(err);
   }
 };
 
@@ -121,6 +122,21 @@ const activity = async (req, res, next) => {
   }
 };
 
+const getUserProfile = async (req, res, next) => {
+  try {
+    const {userId} = req?.body;
+    if (!userId) throw new httpError(null, 401, {}, 'Unauthorized');
+    
+    const user = await User.findById(userId).select('username email profilePic isVerified');
+    if (!user) throw new httpError(null, 404, {}, 'User not found');
+    
+    return sendResponse(res, 200, user, 'success!');
+  } catch (err) {
+    err.scope = err.scope || 'getUserProfile';
+    next(err);
+  }
+};
+
 module.exports = {
   createUser,
   loginUser,
@@ -128,4 +144,5 @@ module.exports = {
   verifyEmail,
   updateAccessToken,
   activity,
+  getUserProfile,
 };
