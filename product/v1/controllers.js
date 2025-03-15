@@ -154,7 +154,68 @@ const uploadFile = async (req, res, next) => {
     let public_urls = await Promise.all(promises);
     return sendResponse(res, 200, { url: public_urls }, 'success!');
   } catch (err) {
-    err.scope = err.scope || 'uploadFile';
+    err.scope = 'uploadFile';
+    next(err);
+  }
+};
+
+/**
+ * Get trending products based on a recommendation algorithm
+ * Factors considered:
+ * 1. Recent activity (reviews, replies)
+ * 2. Average rating
+ * 3. Total reviews count
+ * 4. Product age (newer products get a boost)
+ */
+const getTrendingProducts = async (req, res, next) => {
+  try {
+    const { limit = 10 } = req.query;
+    
+    // Get current date for age calculation
+    const currentDate = new Date();
+    
+    // Fetch products with their reviews
+    const products = await Product.find({ isDeleted: { $ne: true } })
+      .sort({ createdAt: -1 })
+      .limit(100) // Get a larger pool of recent products to calculate scores
+      .lean();
+    
+    // Calculate a trending score for each product
+    const productsWithScores = products.map(product => {
+      // Base score starts at 0
+      let score = 0;
+      
+      // Factor 1: Product age (newer products get higher score)
+      // Products less than 30 days old get a boost
+      const productAge = Math.max(1, Math.floor((currentDate - new Date(product.createdAt)) / (1000 * 60 * 60 * 24)));
+      const ageScore = Math.max(0, 30 - productAge) * 2; // Max 60 points for brand new products
+      
+      // Factor 2: Review count
+      const reviewScore = (product.totalReviews || 0) * 10; // 10 points per review
+      
+      // Factor 3: Rating score (0-5 scale converted to 0-50)
+      const ratingScore = (product.averageRating || 0) * 10; // Max 50 points for 5-star products
+      
+      // Factor 4: Recent activity (replies)
+      const replyScore = (product.totalReplies || 0) * 5; // 5 points per reply
+      
+      // Calculate final score
+      score = ageScore + reviewScore + ratingScore + replyScore;
+      
+      return {
+        ...product,
+        trendingScore: score
+      };
+    });
+    
+    // Sort by trending score and take the top N
+    const trendingProducts = productsWithScores
+      .sort((a, b) => b.trendingScore - a.trendingScore)
+      .slice(0, limit);
+    
+    return sendResponse(res, 200, trendingProducts, 'success!');
+  } catch (err) {
+    err.scope = 'getTrendingProducts';
     next(err);
   }
 };
@@ -168,4 +229,5 @@ module.exports = {
   createCategory,
   listCategories,
   uploadFile,
+  getTrendingProducts
 };

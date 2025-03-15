@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { getAllProducts, getSingleProduct, addProduct, deleteProduct, editProduct, createCategory, listCategories, uploadFile } = require('./controllers');
+const { getAllProducts, getSingleProduct, addProduct, deleteProduct, editProduct, createCategory, listCategories, uploadFile, getTrendingProducts } = require('./controllers');
 const { isAuthenticated } = require('../../utils/helpers/helper');
 const multer = require('multer');
 const { ALLOWED_MIME_TYPES } = require('../../utils/constants/constant');
@@ -18,6 +18,9 @@ router.get('/product', getAllProducts);
 
 //? get single product
 router.get('/product/:id', getSingleProduct);
+
+//? get trending products
+router.get('/trending-products', getTrendingProducts);
 
 //? add product
 router.post('/product', isAuthenticated, addProduct);
