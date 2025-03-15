@@ -220,6 +220,135 @@ const getTrendingProducts = async (req, res, next) => {
   }
 };
 
+const searchProducts = async (req, res, next) => {
+  try {
+    const { q } = req.query;
+    
+    if (!q) {
+      return sendResponse(res, 200, [], 'success!');
+    }
+    
+    // Split the query into keywords for more flexible matching
+    const keywords = q.toLowerCase().split(/\s+/).filter(word => word.length > 1);
+    
+    // Create an array of regex patterns for each keyword
+    const keywordPatterns = keywords.map(keyword => new RegExp(keyword, 'i'));
+    
+    // Build a more sophisticated query
+    const searchQuery = {
+      isDeleted: { $ne: true },
+      $or: [
+        // Match title containing any of the keywords
+        { title: { $regex: keywordPatterns.map(p => p.source).join('|'), $options: 'i' } },
+        // Match description containing any of the keywords
+        { description: { $regex: keywordPatterns.map(p => p.source).join('|'), $options: 'i' } },
+        // Match exact title (for higher relevance)
+        { title: { $regex: new RegExp(q, 'i') } }
+      ]
+    };
+    
+    // Find products matching our query
+    let products = await Product.find(searchQuery)
+      .populate('categoryId')
+      .populate('createdBy', 'username')
+      .lean();
+    
+    // Search for categories matching keywords
+    const categoryIds = await Category.find({ 
+      name: { $regex: keywordPatterns.map(p => p.source).join('|'), $options: 'i' } 
+    }).distinct('_id');
+    
+    if (categoryIds.length > 0) {
+      const productsByCategory = await Product.find({
+        categoryId: { $in: categoryIds },
+        isDeleted: { $ne: true },
+        // Exclude products already found
+        _id: { $nin: products.map(p => p._id) }
+      })
+      .populate('categoryId')
+      .populate('createdBy', 'username')
+      .lean();
+      
+      // Add category-matched products
+      products = [...products, ...productsByCategory];
+    }
+    
+    // Calculate relevance score for each product
+    const scoredProducts = products.map(product => {
+      let score = 0;
+      const title = product.title?.toLowerCase() || '';
+      const description = product.description?.toLowerCase() || '';
+      const categoryName = product.categoryId?.name?.toLowerCase() || '';
+      
+      // Exact match in title gets highest score
+      if (title === q.toLowerCase()) {
+        score += 100;
+      }
+      
+      // Title contains full query
+      if (title.includes(q.toLowerCase())) {
+        score += 50;
+      }
+      
+      // Count how many keywords match in the title
+      keywords.forEach(keyword => {
+        if (title.includes(keyword)) {
+          score += 10;
+        }
+      });
+      
+      // Count how many keywords match in the description
+      keywords.forEach(keyword => {
+        if (description.includes(keyword)) {
+          score += 5;
+        }
+      });
+      
+      // Category name matches
+      if (categoryName.includes(q.toLowerCase())) {
+        score += 30;
+      }
+      
+      // Keywords in category name
+      keywords.forEach(keyword => {
+        if (categoryName.includes(keyword)) {
+          score += 8;
+        }
+      });
+      
+      // Boost score for products with reviews
+      if (product.totalReviews > 0) {
+        score += Math.min(20, product.totalReviews * 2);
+      }
+      
+      // Boost score for newer products
+      const productAge = Math.floor((new Date() - new Date(product.createdAt)) / (1000 * 60 * 60 * 24));
+      if (productAge < 30) {
+        score += Math.max(0, 10 - Math.floor(productAge / 3));
+      }
+      
+      return {
+        ...product,
+        relevanceScore: score
+      };
+    });
+    
+    // Sort by relevance score and return
+    const sortedProducts = scoredProducts
+      .sort((a, b) => b.relevanceScore - a.relevanceScore)
+      .map(product => {
+        // Remove the score before sending to client
+        const { relevanceScore, ...productWithoutScore } = product;
+        return productWithoutScore;
+      });
+    
+    return sendResponse(res, 200, sortedProducts, 'success!');
+  } catch (err) {
+    err.scope = err.scope || 'searchProducts';
+    next(err);
+  }
+};
+
 module.exports = {
   getAllProducts,
   getSingleProduct,
@@ -229,5 +358,6 @@ module.exports = {
   createCategory,
   listCategories,
   uploadFile,
-  getTrendingProducts
+  getTrendingProducts,
+  searchProducts
 };

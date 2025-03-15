@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { getAllProducts, getSingleProduct, addProduct, deleteProduct, editProduct, createCategory, listCategories, uploadFile, getTrendingProducts } = require('./controllers');
+const { getAllProducts, getSingleProduct, addProduct, deleteProduct, editProduct, createCategory, listCategories, uploadFile, getTrendingProducts, searchProducts } = require('./controllers');
 const { isAuthenticated } = require('../../utils/helpers/helper');
 const multer = require('multer');
 const { ALLOWED_MIME_TYPES } = require('../../utils/constants/constant');
@@ -42,5 +42,8 @@ router.get('/category', listCategories);
 
 //? file upload APi
 router.post('/uploadFile', isAuthenticated, upload.array('file', 10), uploadFile);
+
+// Add this route for searching products
+router.get('/search', searchProducts);
 
 module.exports = router;
