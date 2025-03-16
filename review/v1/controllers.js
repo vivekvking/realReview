@@ -45,8 +45,20 @@ const getCommentsOnReview = async (req, res, next) => {
   try {
     let { productId, reviewId } = req.params;
     let { skip = 0, limit = 10 } = req.query;
-    let comments = await Review.find({ productId, parentId: reviewId }).skip(skip).limit(limit).populate('userId', 'username profilePic').lean().exec();
-    sendResponse(res, 200, comments, 'Success!');
+    
+    // Get total count of comments for this review
+    const totalCount = await Review.countDocuments({ productId, parentId: reviewId });
+    
+    // Get paginated comments
+    let comments = await Review.find({ productId, parentId: reviewId })
+      .skip(parseInt(skip))
+      .limit(parseInt(limit))
+      .populate('userId', 'username profilePic')
+      .lean()
+      .exec();
+    
+    // Send response with comments and total count
+    sendResponse(res, 200, { data: comments, totalCount }, 'Success!');
   } catch (err) {
     err.scope = err.scope || 'getCommentsOnReview';
     next(err);
