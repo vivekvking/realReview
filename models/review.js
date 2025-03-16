@@ -58,7 +58,7 @@ ReviewSchema.pre('save', function(next) {
   next();
 });
 
-ReviewSchema.index({ productId: 1, parent: 1 });
+ReviewSchema.index({ productId: 1, parentId: 1 });
 const Review = mongooseConn.model('review', ReviewSchema, 'review');
 
 module.exports = Review;

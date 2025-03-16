@@ -21,6 +21,26 @@ const getReviewOfSingleProduct = async (req, res, next) => {
   }
 };
 
+// Get rating distribution for a product
+const getRatingDistribution = async (req, res, next) => {
+  try {
+    let { productId } = req?.params;
+    if (!productId) throw new httpError(null, 400, {}, 'Product id missing');
+    
+    const product = await Product.findOne({ _id: productId }, 'ratingDistribution totalReviews averageRating');
+    if (!product) throw new httpError(null, 404, {}, 'Product not found!');
+    
+    sendResponse(res, 200, {
+      ratingDistribution: product.ratingDistribution || { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      totalReviews: product.totalReviews || 0,
+      averageRating: product.averageRating || 0
+    }, 'Success!');
+  } catch (err) {
+    err.scope = err.scope || 'getRatingDistribution';
+    next(err);
+  }
+};
+
 const getCommentsOnReview = async (req, res, next) => {
   try {
     let { productId, reviewId } = req.params;
@@ -50,7 +70,16 @@ const addReview = async (req, res, next) => {
     } else {
       review = await Review.create({ comment, rating, productId, images, videos, userId });
 
-      // todo - update the average rating counting process when site visitors increase
+      // Initialize rating distribution if it doesn't exist
+      if (!product.ratingDistribution) {
+        product.ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+      }
+      
+      // Increment the count for this rating
+      const ratingKey = Math.floor(rating);
+      product.ratingDistribution[ratingKey] = (product.ratingDistribution[ratingKey] || 0) + 1;
+
+      // Update average rating
       let totalRating = (product?.totalRating ?? 0) + rating;
       let totalReviews = (product?.totalReviews ?? 0) + 1;
       let averageRating = (totalRating / totalReviews).toFixed(2);
@@ -69,6 +98,14 @@ const addReview = async (req, res, next) => {
 const editReview = async (req, res, next) => {
   try {
     let { productId, comment, rating, images, videos, username, userId, reviewId } = req?.body;
+    
+    // Get the original review to check if rating changed
+    const originalReview = await Review.findOne({ _id: reviewId, userId });
+    if (!originalReview) {
+      return sendResponse(res, 404, null, 'Review not found or you do not have permission to edit it');
+    }
+    
+    // Update the review
     let review = await Review.findOneAndUpdate(
       { _id: reviewId, userId },
       {
@@ -81,8 +118,32 @@ const editReview = async (req, res, next) => {
       },
       { new: true },
     );
-    // todo - if some other user try to edit the comment then it won't edit it as it won't find that document
-    // todo - change the api response accordingly
+    
+    // If rating changed, update the product's rating distribution
+    if (originalReview.rating !== rating && productId) {
+      const product = await Product.findOne({ _id: productId });
+      if (product && product.ratingDistribution) {
+        // Decrement the old rating count
+        const oldRatingKey = Math.floor(originalReview.rating);
+        if (product.ratingDistribution[oldRatingKey] > 0) {
+          product.ratingDistribution[oldRatingKey] -= 1;
+        }
+        
+        // Increment the new rating count
+        const newRatingKey = Math.floor(rating);
+        product.ratingDistribution[newRatingKey] = (product.ratingDistribution[newRatingKey] || 0) + 1;
+        
+        // Recalculate average rating
+        const totalReviews = product.totalReviews || 0;
+        if (totalReviews > 0) {
+          const totalRating = (product.totalRating || 0) - originalReview.rating + rating;
+          product.totalRating = totalRating;
+          product.averageRating = (totalRating / totalReviews).toFixed(2);
+          await product.save();
+        }
+      }
+    }
+    
     return sendResponse(res, 200, review, 'success!');
   } catch (err) {
     err.scope = err.scope || 'editReview';
@@ -92,14 +153,55 @@ const editReview = async (req, res, next) => {
 
 const deleteReview = async (req, res, next) => {
   try {
-    let { username, userId, reviewId } = req?.body;
-    await Review.deleteOne({ _id: reviewId, userId })
-      .then(() => {
-        return sendResponse(res, 200, {}, 'Deleted Successfully');
-      })
-      .catch((err) => {
-        return sendResponse(res, 409, {}, 'You cannot delete this review');
-      });
+    let { reviewId } = req?.body;
+    let review = await Review.findOne({ _id: reviewId });
+    if (!review) throw new httpError(null, 404, {}, 'Review not found!');
+    
+    // If this is a top-level review with a rating, update the product's rating distribution
+    if (!review.parentId && review.rating) {
+      const product = await Product.findOne({ _id: review.productId });
+      if (product) {
+        // Decrement the rating count
+        const ratingKey = Math.floor(review.rating);
+        if (product.ratingDistribution && product.ratingDistribution[ratingKey] > 0) {
+          product.ratingDistribution[ratingKey] -= 1;
+        }
+        
+        // Recalculate average rating
+        const totalReviews = (product.totalReviews || 1) - 1;
+        product.totalReviews = totalReviews;
+        
+        if (totalReviews > 0) {
+          const totalRating = (product.totalRating || review.rating) - review.rating;
+          product.totalRating = totalRating;
+          product.averageRating = (totalRating / totalReviews).toFixed(2);
+        } else {
+          product.totalRating = 0;
+          product.averageRating = 0;
+        }
+        
+        await product.save();
+      }
+    }
+    
+    // If this is a reply, decrement the parent's reply count
+    if (review.parentId) {
+      const parentReview = await Review.findOne({ _id: review.parentId });
+      if (parentReview && parentReview.replyCount > 0) {
+        parentReview.replyCount -= 1;
+        await parentReview.save();
+      }
+      
+      // Also decrement the product's total replies
+      const product = await Product.findOne({ _id: review.productId });
+      if (product && product.totalReplies > 0) {
+        product.totalReplies -= 1;
+        await product.save();
+      }
+    }
+    
+    await Review.deleteOne({ _id: reviewId });
+    return sendResponse(res, 200, {}, 'Deleted successfully');
   } catch (err) {
     err.scope = err.scope || 'deleteReview';
     next(err);
@@ -112,4 +214,5 @@ module.exports = {
   addReview,
   deleteReview,
   editReview,
+  getRatingDistribution
 };
