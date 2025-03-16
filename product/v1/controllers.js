@@ -14,7 +14,22 @@ const getAllProducts = async (req, res, next) => {
     const { skip = 0, limit = 20, search } = req.query;
     let query = {};
     if (search) query['title'] = { $regex: search, $options: 'i' };
-    const products = await Product.find(query).skip(skip).limit(limit).exec();
+    
+    // Update to populate the category information
+    const products = await Product.find(query)
+      .populate('categoryId', 'title description')
+      .skip(skip)
+      .limit(limit)
+      .lean()
+      .exec();
+      
+    // Ensure category is properly set for each product
+    products.forEach(product => {
+      if (product.categoryId && !product.category) {
+        product.category = product.categoryId;
+      }
+    });
+    
     return sendResponse(res, 200, products, 'success!');
   } catch (err) {
     err.scope = 'getAllProducts';
@@ -26,8 +41,19 @@ const getSingleProduct = async (req, res, next) => {
   try {
     let { id } = req.params;
     if (!id) throw new httpError(null, 400, {}, 'Insufficient Data');
-    const product = await Product.findOne({ _id: id });
+    
+    // Update to populate the category information
+    const product = await Product.findOne({ _id: id })
+      .populate('categoryId', 'title description')
+      .lean();
+      
     if (!product) throw new httpError(null, 404, {}, 'Product not found', { id });
+    
+    // Ensure category is properly set
+    if (product.categoryId && !product.category) {
+      product.category = product.categoryId;
+    }
+    
     return sendResponse(res, 200, product, 'success!');
   } catch (err) {
     err.scope = 'getSingleProduct';
@@ -174,11 +200,19 @@ const getTrendingProducts = async (req, res, next) => {
     // Get current date for age calculation
     const currentDate = new Date();
     
-    // Fetch products with their reviews
+    // Fetch products with their reviews and populate category information
     const products = await Product.find({ isDeleted: { $ne: true } })
+      .populate('categoryId', 'title description')
       .sort({ createdAt: -1 })
       .limit(100) // Get a larger pool of recent products to calculate scores
       .lean();
+    
+    // Ensure category is properly set for each product
+    products.forEach(product => {
+      if (product.categoryId && !product.category) {
+        product.category = product.categoryId;
+      }
+    });
     
     // Calculate a trending score for each product
     const productsWithScores = products.map(product => {
