@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { getReviewOfSingleProduct, getCommentsOnReview, addReview, deleteReview, editReview, getRatingDistribution } = require('./controllers');
+const { getReviewOfSingleProduct, getCommentsOnReview, addReview, deleteReview, editReview, getRatingDistribution, reportReview } = require('./controllers');
 const { isAuthenticated } = require('../../utils/helpers/helper');
 const router = Router();
 
@@ -20,6 +20,9 @@ router.put('/', isAuthenticated, editReview);
 
 //? delete review or comment
 router.delete('/', isAuthenticated, deleteReview);
+
+//? report a review for moderation
+router.post('/report', isAuthenticated, reportReview);
 
 // todo - like a review or a comment
 

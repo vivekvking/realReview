@@ -40,6 +40,37 @@ const ReviewSchema = Schema(
       ref: 'user',
       required: true,
     },
+    //? proof-of-purchase. An order screenshot / UPI receipt earns the "Verified
+    //? purchase" badge - this is the anti-astroturf mechanism, so unverified
+    //? reviews still show but rank lower and read weaker.
+    isVerifiedPurchase: {
+      type: Boolean,
+      default: false,
+    },
+    proofUrl: {
+      type: String,
+    },
+    orderDate: {
+      type: Date,
+    },
+    //? a claimed seller answering a review about them - right of reply, which is
+    //? both fair and a large part of staying an intermediary rather than a
+    //? publisher if this is ever challenged legally
+    isSellerReply: {
+      type: Boolean,
+      default: false,
+    },
+    //? takedown workflow. Reviews are never hard-deleted by moderation, they
+    //? move to under_review / removed so there is an audit trail.
+    status: {
+      type: String,
+      enum: ['published', 'under_review', 'removed'],
+      default: 'published',
+    },
+    reportCount: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,

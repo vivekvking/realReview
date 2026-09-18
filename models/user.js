@@ -22,15 +22,9 @@ const UserSchema = Schema(
       type: Boolean,
       default: false,
     },
-    refreshToken: {
-      type: String,
-    },
-    accessToken: {
-      type: String,
-    },
-    salt: {
-      type: String,
-    },
+    //? tokens are deliberately NOT persisted - they are signed JWTs, so storing
+    //? them hands live sessions to anyone who reads the collection, and writing
+    //? them on every login capped each user at a single active device
     referralId: {
       type: String,
     },

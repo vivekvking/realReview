@@ -7,7 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node app.js",
     "format": "npx prettier --write .",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "dev:local": "node dev-server.js",
+    "seed:force": "SEED=force node dev-server.js"
   },
   "repository": {
     "type": "git",
@@ -21,11 +23,9 @@
   "homepage": "https://github.com/vivekvking/realReview#readme",
   "dependencies": {
     "@google-cloud/storage": "^7.11.0",
-    "aws-sdk": "^2.1565.0",
     "axios": "^1.6.7",
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
-    "cron": "^3.1.7",
     "dotenv": "^16.4.7",
     "express": "^4.18.2",
     "express-rate-limit": "^7.2.0",
@@ -33,15 +33,15 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
-    "mailgun-js": "^0.22.0",
     "moment": "^2.30.1",
+    "mongodb-memory-server": "^11.2.0",
     "mongoose": "^8.2.0",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
-    "node-cron": "^3.0.3",
-    "nodemailer": "^6.9.13",
+    "node-cron": "^4.6.0",
+    "nodemailer": "^10.0.10",
     "openai": "^4.49.0",
     "prettier": "^3.2.5",
-    "uuid": "^9.0.1"
+    "uuid": "^14.0.2"
   }
 }

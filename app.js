@@ -9,7 +9,7 @@ app.use(morgan('dev'));
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
-    limit: 10000,
+    limit: 600,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     message: 'Rate limit exceeded',
@@ -28,9 +28,11 @@ const { sendResponse } = require('./utils/helpers/helper');
 const { handleAppError } = require('./utils/helpers/error');
 
 // CORS Setup
+//? credentials:true and origin:'*' are mutually exclusive - browsers reject the
+//? pair outright, so prod needs an explicit allowlist from CORS_ORIGIN
 const corsOptions = {
-  origin: process.env.PROJECT_ENV === 'prod' 
-    ? process.env.CORS_ORIGIN || '*'
+  origin: process.env.PROJECT_ENV === 'prod'
+    ? (process.env.CORS_ORIGIN || '').split(',').map((o) => o.trim()).filter(Boolean)
     : ['http://localhost:3000', 'http://127.0.0.1:3000'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'User-Agent', 'X-Requested-With'],
   methods: ['GET', 'PUT', 'OPTIONS', 'POST', 'DELETE'],
