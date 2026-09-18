@@ -71,6 +71,12 @@ const ReviewSchema = Schema(
       type: Number,
       default: 0,
     },
+    //? set only on top-level reviews, left unset on replies. Exists purely so
+    //? the one-review-per-user index below can be a partial index - Mongo's
+    //? partialFilterExpression does not accept { $exists: false }.
+    isTopLevel: {
+      type: Boolean,
+    },
   },
   {
     timestamps: true,
@@ -86,10 +92,19 @@ ReviewSchema.pre('save', function(next) {
   } else if (this.reviewId && !this.parentId) {
     this.parentId = this.reviewId;
   }
+  this.isTopLevel = this.parentId ? undefined : true;
   next();
 });
 
 ReviewSchema.index({ productId: 1, parentId: 1 });
+
+//? One review per person per seller. Without this, one user with three
+//? accounts can set any seller's rating to whatever they want, which makes
+//? every number on the site meaningless. Replies are unaffected.
+ReviewSchema.index(
+  { productId: 1, userId: 1 },
+  { unique: true, partialFilterExpression: { isTopLevel: true } },
+);
 const Review = mongooseConn.model('review', ReviewSchema, 'review');
 
 module.exports = Review;

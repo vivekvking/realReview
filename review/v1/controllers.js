@@ -2,6 +2,8 @@ const Review = require('../../models/review');
 const { sendResponse } = require('../../utils/helpers/helper');
 const { httpError } = require('../../utils/helpers/error');
 const Product = require('../../models/product');
+const User = require('../../models/user');
+const { REQUIRE_EMAIL_VERIFICATION } = require('../../utils/constants/envConstants');
 
 const getReviewOfSingleProduct = async (req, res, next) => {
   try {
@@ -76,6 +78,17 @@ const addReview = async (req, res, next) => {
   try {
     let { productId, comment, rating, images, videos, reviewId, username, userId, proofUrl, orderDate } = req.body;
     let review;
+
+    //? gate on a verified email so making throwaway accounts to pile on a
+    //? seller costs something. Off by default so local dev and demos work
+    //? without mail credentials configured.
+    if (REQUIRE_EMAIL_VERIFICATION) {
+      const author = await User.findOne({ _id: userId }, 'isVerified').lean();
+      if (!author?.isVerified) {
+        throw new httpError(null, 403, {}, 'Verify your email address before posting a review');
+      }
+    }
+
     let product = await Product.findOne({ _id: productId });
     if (!product) throw new httpError(null, 404, {}, 'Product not found!');
     if (reviewId) {
@@ -125,6 +138,11 @@ const addReview = async (req, res, next) => {
     }
     return sendResponse(res, 200, review, 'success!');
   } catch (err) {
+    //? the one-review-per-user index rejecting a second review is a normal
+    //? thing for a user to do, not a server error - point them at editing
+    if (err?.code === 11000) {
+      err = new httpError(null, 409, {}, 'You have already reviewed this seller. Edit your existing review instead.');
+    }
     err.scope = err.scope || 'addReveiw';
     next(err);
   }

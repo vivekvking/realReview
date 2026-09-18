@@ -1,4 +1,5 @@
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const User = require('../../models/user');
 const { httpError } = require('../../utils/helpers/error');
@@ -20,16 +21,22 @@ const createUser = async (req, res, next) => {
     //? salt never did anything (bcrypt reads only the first 29 chars), so it is
     //? dropped rather than left as a pepper that isn't one
     let hashedPass = await bcrypt.hash(password, SALT_ROUNDS);
-    let user = await User.create({ username, password: hashedPass, email, profilePic: profilePic });
+    let verificationToken = crypto.randomBytes(32).toString('hex');
+    let user = await User.create({ username, password: hashedPass, email, profilePic: profilePic, verificationToken });
     let accessToken = jwt.sign({ username, userId: user._id }, JWT_ACCESS_HASH_KEY, { expiresIn: '1h' });
     let refreshToken = jwt.sign({ username, userId: user._id }, JWT_REFRESH_HASH_KEY, { expiresIn: '30d' });
 
-    // todo - verify user
-    let redirectUrl = `${APP_URL}/user/v1/verify/${username}`;
-    // sendEmailTemplateViaMailgun({ to: email, subject: 'Verify Your Email', template: EMAIL_TEMPLATES.email_verification.name, variables: { username, verifyEmailRedirectUrl } });
-    // sendMailViaGmail({ to: email, subject: 'Verify Your Email', templateName: NODEMAILER_EMAIL_TEMPLATES.email_verification.name, variables: { username, redirectUrl } });
+    let redirectUrl = `${APP_URL}/user/v1/verify/${verificationToken}`;
+    //? fire and forget - a mail failure must not block signup, and the helper
+    //? no-ops with a log when no credentials are configured
+    sendMailViaGmail({
+      to: email,
+      subject: 'Verify your ReviewChacha email',
+      templateName: NODEMAILER_EMAIL_TEMPLATES.email_verification.name,
+      variables: { username, redirectUrl },
+    });
 
-    return sendResponse(res, 200, { username, accessToken, refreshToken, redirectUrl }, 'success!');
+    return sendResponse(res, 200, { username, accessToken, refreshToken }, 'success!');
   } catch (err) {
     err.scope = err.scope || 'createUser';
     next(err);
@@ -95,15 +102,20 @@ const checkValidUserName = async (req, res, next) => {
 
 const verifyEmail = async (req, res, next) => {
   try {
-    let { username } = req.params;
-    if (!username) throw new httpError(null, 400, {}, 'Insufficient Data');
-    const user = await User.findOne({ username });
-    if (!user) throw new httpError(null, 401, {}, 'Bad Request');
+    let { token } = req.params;
+    if (!token) throw new httpError(null, 400, {}, 'Insufficient Data');
+
+    //? matched on the single-use token, never on the username - the previous
+    //? version let anyone verify any account just by visiting its URL
+    const user = await User.findOne({ verificationToken: token });
+    if (!user) throw new httpError(null, 400, {}, 'This verification link is invalid or has already been used');
+
     user.isVerified = true;
+    user.verificationToken = undefined;
     await user.save();
-    return sendResponse(res, 200, {}, 'You Email is Verified Successfully');
+    return sendResponse(res, 200, {}, 'Your email is verified successfully');
   } catch (err) {
-    err.scope = err.scope || 'checkValidUserName';
+    err.scope = err.scope || 'verifyEmail';
     next(err);
   }
 };
