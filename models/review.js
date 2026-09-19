@@ -3,6 +3,28 @@ const Schema = Mongoose.Schema;
 const { DB } = require('../utils/connectors/mongo');
 const mongooseConn = DB.MONGOOSE_CONN_OBJECT;
 
+//? fixed vocabulary, deliberately small. Free-form tags would fragment
+//? instantly ("didnt arrive" / "never came" / "no delivery") and stop
+//? aggregating, which is the entire reason they exist.
+const REVIEW_TAGS = [
+  // positive
+  'as_described',
+  'fast_shipping',
+  'good_communication',
+  'well_packaged',
+  'fair_price',
+  'would_buy_again',
+  // negative
+  'not_as_described',
+  'late_delivery',
+  'never_arrived',
+  'no_response',
+  'fake_product',
+  'refused_refund',
+  'blocked_me',
+  'arrived_damaged',
+];
+
 const ReviewSchema = Schema(
   {
     comment: {
@@ -77,6 +99,15 @@ const ReviewSchema = Schema(
     isTopLevel: {
       type: Boolean,
     },
+    //? structured "what happened" tags picked from a fixed list. Most people
+    //? will not write paragraphs, so these carry the signal a free-text box
+    //? would otherwise lose - and they aggregate, which prose never will
+    //? ("6 people said they were blocked after paying" beats six essays).
+    tags: {
+      type: [String],
+      enum: REVIEW_TAGS,
+      default: undefined,
+    },
   },
   {
     timestamps: true,
@@ -108,3 +139,4 @@ ReviewSchema.index(
 const Review = mongooseConn.model('review', ReviewSchema, 'review');
 
 module.exports = Review;
+module.exports.REVIEW_TAGS = REVIEW_TAGS;

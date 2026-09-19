@@ -1,4 +1,5 @@
 const Review = require('../../models/review');
+const { REVIEW_TAGS } = require('../../models/review');
 const { sendResponse } = require('../../utils/helpers/helper');
 const { httpError } = require('../../utils/helpers/error');
 const Product = require('../../models/product');
@@ -76,8 +77,15 @@ const getCommentsOnReview = async (req, res, next) => {
 
 const addReview = async (req, res, next) => {
   try {
-    let { productId, comment, rating, images, videos, reviewId, username, userId, proofUrl, orderDate } = req.body;
+    let { productId, comment, rating, images, videos, reviewId, username, userId, proofUrl, orderDate, tags } = req.body;
     let review;
+
+    //? drop anything not in the fixed vocabulary rather than rejecting the
+    //? whole review - an unknown tag is a client bug, not the user's problem
+    if (tags && !Array.isArray(tags)) throw new httpError(null, 400, {}, 'Bad Request');
+    const cleanTags = Array.isArray(tags)
+      ? [...new Set(tags.filter((t) => REVIEW_TAGS.includes(t)))].slice(0, 8)
+      : undefined;
 
     //? gate on a verified email so making throwaway accounts to pile on a
     //? seller costs something. Off by default so local dev and demos work
@@ -115,6 +123,7 @@ const addReview = async (req, res, next) => {
         userId,
         proofUrl,
         orderDate,
+        tags: cleanTags?.length ? cleanTags : undefined,
         isVerifiedPurchase: Boolean(proofUrl),
       });
 
