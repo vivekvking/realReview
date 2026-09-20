@@ -51,6 +51,20 @@ app.use('/review', reviewRoutes);
 app.use('/product', productRoutes);
 app.use('/user', userRoutes);
 
+//? real health check for the host's probe - reports DB connectivity rather
+//? than just "the process is up", so a deploy that can't reach Mongo fails
+//? loudly instead of serving 500s to visitors
+app.get('/health', (req, res) => {
+  const { DB } = require('./utils/connectors/mongo');
+  const state = DB.MONGOOSE_CONN_OBJECT?.readyState;
+  const connected = state === 1;
+  return res.status(connected ? 200 : 503).json({
+    status: connected ? 'ok' : 'degraded',
+    db: ['disconnected', 'connected', 'connecting', 'disconnecting'][state] ?? 'unknown',
+    uptime: Math.round(process.uptime()),
+  });
+});
+
 app.use('/', (req, res) => {
   res.send('Heyyy Server Started');
 });
