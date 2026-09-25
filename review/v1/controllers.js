@@ -1,16 +1,26 @@
 const Review = require('../../models/review');
+const { REVIEW_TAGS } = require('../../models/review');
 const { sendResponse } = require('../../utils/helpers/helper');
 const { httpError } = require('../../utils/helpers/error');
 const Product = require('../../models/product');
+const User = require('../../models/user');
+const { REQUIRE_EMAIL_VERIFICATION } = require('../../utils/constants/envConstants');
 
 const getReviewOfSingleProduct = async (req, res, next) => {
   try {
     let { productId } = req?.params;
     let { skip = 0, limit = 20 } = req?.query;
     if (!productId) throw new httpError(null, 400, {}, 'Product id missing');
-    let reviews = await Review.find({ productId: productId, parentId: { $exists: false } })
-      .skip(skip)
-      .limit(limit)
+    let reviews = await Review.find({
+      productId: productId,
+      parentId: { $exists: false },
+      status: { $ne: 'removed' },
+    })
+      //? verified purchases first, then newest - an unverified review still
+      //? shows, it just doesn't get to sit at the top of the page
+      .sort({ isVerifiedPurchase: -1, createdAt: -1 })
+      .skip(parseInt(skip))
+      .limit(parseInt(limit))
       .populate('userId', 'username profilePic')
       .lean()
       .exec();
@@ -67,20 +77,55 @@ const getCommentsOnReview = async (req, res, next) => {
 
 const addReview = async (req, res, next) => {
   try {
-    let { productId, comment, rating, images, videos, reviewId, username, userId } = req.body;
+    let { productId, comment, rating, images, videos, reviewId, username, userId, proofUrl, orderDate, tags } = req.body;
     let review;
+
+    //? drop anything not in the fixed vocabulary rather than rejecting the
+    //? whole review - an unknown tag is a client bug, not the user's problem
+    if (tags && !Array.isArray(tags)) throw new httpError(null, 400, {}, 'Bad Request');
+    const cleanTags = Array.isArray(tags)
+      ? [...new Set(tags.filter((t) => REVIEW_TAGS.includes(t)))].slice(0, 8)
+      : undefined;
+
+    //? gate on a verified email so making throwaway accounts to pile on a
+    //? seller costs something. Off by default so local dev and demos work
+    //? without mail credentials configured.
+    if (REQUIRE_EMAIL_VERIFICATION) {
+      const author = await User.findOne({ _id: userId }, 'isVerified').lean();
+      if (!author?.isVerified) {
+        throw new httpError(null, 403, {}, 'Verify your email address before posting a review');
+      }
+    }
+
     let product = await Product.findOne({ _id: productId });
     if (!product) throw new httpError(null, 404, {}, 'Product not found!');
     if (reviewId) {
       const parentReview = await Review.findOne({ _id: reviewId });
       if (!parentReview) throw new httpError(null, 404, {}, 'Review not found!');
-      review = await Review.create({ comment, productId, images, videos, userId, parentId: reviewId });
+      //? a claimed owner replying on their own page is badged as the seller
+      const isSellerReply = product.isClaimed && product.claimedBy?.toString() === userId?.toString();
+      review = await Review.create({ comment, productId, images, videos, userId, parentId: reviewId, isSellerReply });
       parentReview.replyCount = (parentReview.replyCount || 0) + 1;
       await parentReview.save();
       product.totalReplies = (product?.totalReplies ?? 0) + 1;
       await product.save();
     } else {
-      review = await Review.create({ comment, rating, productId, images, videos, userId });
+      if (!rating || rating < 1 || rating > 5) throw new httpError(null, 400, {}, 'A review needs a rating between 1 and 5');
+
+      //? attaching an order screenshot / receipt is what earns the badge. The
+      //? file itself is reviewable later if the rating is ever disputed.
+      review = await Review.create({
+        comment,
+        rating,
+        productId,
+        images,
+        videos,
+        userId,
+        proofUrl,
+        orderDate,
+        tags: cleanTags?.length ? cleanTags : undefined,
+        isVerifiedPurchase: Boolean(proofUrl),
+      });
 
       // Initialize rating distribution if it doesn't exist
       if (!product.ratingDistribution) {
@@ -102,6 +147,11 @@ const addReview = async (req, res, next) => {
     }
     return sendResponse(res, 200, review, 'success!');
   } catch (err) {
+    //? the one-review-per-user index rejecting a second review is a normal
+    //? thing for a user to do, not a server error - point them at editing
+    if (err?.code === 11000) {
+      err = new httpError(null, 409, {}, 'You have already reviewed this seller. Edit your existing review instead.');
+    }
     err.scope = err.scope || 'addReveiw';
     next(err);
   }
@@ -165,9 +215,15 @@ const editReview = async (req, res, next) => {
 
 const deleteReview = async (req, res, next) => {
   try {
-    let { reviewId } = req?.body;
+    let { reviewId, userId } = req?.body;
     let review = await Review.findOne({ _id: reviewId });
     if (!review) throw new httpError(null, 404, {}, 'Review not found!');
+
+    //? without this any logged-in account could delete anybody's review, which
+    //? is the one thing this product promises cannot happen
+    if (review.userId?.toString() !== userId?.toString()) {
+      throw new httpError(null, 403, {}, 'You can only delete your own review');
+    }
     
     // If this is a top-level review with a rating, update the product's rating distribution
     if (!review.parentId && review.rating) {
@@ -220,9 +276,42 @@ const deleteReview = async (req, res, next) => {
   }
 };
 
+//? the takedown path. A seller who thinks a review is false flags it here
+//? instead of it being silently unanswerable - reports are queued for
+//? moderation rather than auto-removing, so one angry seller can't erase
+//? criticism, and we keep an audit trail if a claim is ever escalated.
+const REPORT_REASONS = ['false_information', 'spam', 'abusive', 'not_my_business', 'personal_data', 'other'];
+const REPORT_THRESHOLD = 3;
+
+const reportReview = async (req, res, next) => {
+  try {
+    let { reviewId, reason, details } = req?.body;
+    if (!reviewId || !reason) throw new httpError(null, 400, {}, 'Insufficient Data');
+    if (!REPORT_REASONS.includes(reason)) throw new httpError(null, 400, {}, 'Unknown report reason');
+
+    const review = await Review.findOne({ _id: reviewId });
+    if (!review) throw new httpError(null, 404, {}, 'Review not found!');
+
+    review.reportCount = (review.reportCount || 0) + 1;
+    //? enough independent reports hides it pending a human look, but it is
+    //? never hard-deleted - status moves, the row stays
+    if (review.reportCount >= REPORT_THRESHOLD && review.status === 'published') {
+      review.status = 'under_review';
+    }
+    await review.save();
+
+    console.log(`[moderation] review ${reviewId} reported as ${reason}: ${details || 'no details'} (count ${review.reportCount})`);
+    return sendResponse(res, 200, { status: review.status }, 'success!');
+  } catch (err) {
+    err.scope = err.scope || 'reportReview';
+    next(err);
+  }
+};
+
 module.exports = {
   getReviewOfSingleProduct,
   getCommentsOnReview,
+  reportReview,
   addReview,
   deleteReview,
   editReview,

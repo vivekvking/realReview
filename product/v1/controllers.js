@@ -5,15 +5,20 @@ const Category = require('../../models/category');
 const User = require('../../models/user');
 const { PUBLIC_BUCKET_NAME } = require('../../utils/constants/envConstants');
 const { uploadFileToGCP } = require('../../utils/helpers/gcphelper');
+const { normaliseHandle } = require('../../models/product');
 const moment = require('moment');
 const { v4: uuidv4 } = require('uuid');
+
+//? search terms reach $regex / new RegExp() directly, so unescaped input lets a
+//? user inject patterns and stall the DB with a catastrophic-backtracking string
+const escapeRegex = (str = '') => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const getAllProducts = async (req, res, next) => {
   try {
     // todo - add a searching algorithm in this
     const { skip = 0, limit = 20, search } = req.query;
     let query = {};
-    if (search) query['title'] = { $regex: search, $options: 'i' };
+    if (search) query['title'] = { $regex: escapeRegex(search), $options: 'i' };
     
     // Update to populate the category information
     const products = await Product.find(query)
@@ -63,18 +68,36 @@ const getSingleProduct = async (req, res, next) => {
 
 const addProduct = async (req, res, next) => {
   try {
-    let { title, description, images, videos, categoryId, username, userId } = req?.body;
+    let { title, description, images, videos, categoryId, username, userId, entityType, platform, handle, profileUrl } = req?.body;
     if (!title) throw new httpError(null, 400, {}, 'Insufficient Data');
     if ((images && !Array.isArray(images)) || (videos && !Array.isArray(videos))) {
       throw new httpError(null, 400, {}, 'Bad Request');
     }
+
+    if (handle) {
+      handle = normaliseHandle(handle);
+      if (!/^[a-z0-9._-]{1,50}$/.test(handle)) {
+        throw new httpError(null, 400, {}, 'Handle may only contain letters, numbers, dots, underscores and hyphens');
+      }
+      if (!platform) throw new httpError(null, 400, {}, 'A handle needs a platform');
+
+      //? surface the existing page instead of failing on the unique index - two
+      //? people adding the same seller is the normal case, not an error
+      const existing = await Product.findOne({ platform, handle }).lean();
+      if (existing) return sendResponse(res, 200, existing, 'success!');
+    }
+
     let product = await Product.create({
       title,
       description,
       images,
       videos,
       createdBy: userId,
-      categoryId,
+      categoryId: categoryId || undefined,
+      entityType: entityType || (handle ? 'social_seller' : 'product'),
+      platform,
+      handle,
+      profileUrl,
     });
     sendResponse(res, 200, product, 'success!');
   } catch (err) {
@@ -83,16 +106,43 @@ const addProduct = async (req, res, next) => {
   }
 };
 
+//? the page every SEO-driven visitor lands on: someone searching
+//? "is @somebrand legit" resolves straight to platform + handle
+const getEntityByHandle = async (req, res, next) => {
+  try {
+    let { platform, handle } = req.params;
+    if (!platform || !handle) throw new httpError(null, 400, {}, 'Insufficient Data');
+
+    const entity = await Product.findOne({
+      platform,
+      handle: normaliseHandle(handle),
+      isDeleted: { $ne: true },
+    })
+      .populate('categoryId', 'title description')
+      .lean();
+
+    if (!entity) throw new httpError(null, 404, {}, 'Entity not found', { platform, handle });
+    return sendResponse(res, 200, entity, 'success!');
+  } catch (err) {
+    err.scope = err.scope || 'getEntityByHandle';
+    next(err);
+  }
+};
+
 const editProduct = async (req, res, next) => {
   try {
-    let { title, description, images, videos, categoryId } = req?.body;
+    let { title, description, images, videos, categoryId, userId } = req?.body;
     let { id } = req?.params;
     if (!id || !title) throw new httpError(null, 400, {}, 'Insufficient Data');
     if ((images && !Array.isArray(images)) || (videos && !Array.isArray(videos))) {
       throw new httpError(null, 400, {}, 'Bad Request');
     }
 
-    // todo - add checks as to who all can edit this
+    let existing = await Product.findOne({ _id: id }, 'createdBy').lean();
+    if (!existing) throw new httpError(null, 404, {}, 'Product not found', { id });
+    if (existing.createdBy?.toString() !== userId?.toString()) {
+      throw new httpError(null, 403, {}, 'You can only edit a listing you created');
+    }
 
     let product = await Product.findOneAndUpdate(
       { _id: id },
@@ -119,7 +169,15 @@ const editProduct = async (req, res, next) => {
 const deleteProduct = async (req, res, next) => {
   try {
     let { id } = req.params;
+    let { userId } = req?.body;
     if (!id) throw new httpError(null, 400, {}, 'Insufficient Data');
+
+    let existing = await Product.findOne({ _id: id }, 'createdBy').lean();
+    if (!existing) throw new httpError(null, 404, {}, 'Product not found', { id });
+    if (existing.createdBy?.toString() !== userId?.toString()) {
+      throw new httpError(null, 403, {}, 'You can only delete a listing you created');
+    }
+
     const product = await Product.findOneAndUpdate(
       { _id: id },
       {
@@ -263,8 +321,8 @@ const searchProducts = async (req, res, next) => {
     }
     
     // Split the query into keywords for more flexible matching
-    const keywords = q.toLowerCase().split(/\s+/).filter(word => word.length > 1);
-    
+    const keywords = q.toLowerCase().split(/\s+/).filter(word => word.length > 1).map(escapeRegex);
+
     // Create an array of regex patterns for each keyword
     const keywordPatterns = keywords.map(keyword => new RegExp(keyword, 'i'));
     
@@ -277,7 +335,7 @@ const searchProducts = async (req, res, next) => {
         // Match description containing any of the keywords
         { description: { $regex: keywordPatterns.map(p => p.source).join('|'), $options: 'i' } },
         // Match exact title (for higher relevance)
-        { title: { $regex: new RegExp(q, 'i') } }
+        { title: { $regex: new RegExp(escapeRegex(q), 'i') } }
       ]
     };
     
@@ -393,5 +451,6 @@ module.exports = {
   listCategories,
   uploadFile,
   getTrendingProducts,
+  getEntityByHandle,
   searchProducts
 };

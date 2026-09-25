@@ -1,5 +1,5 @@
 module.exports = {
-  SALT_ROUNDS: +process.env.SALT_ROUNDS,
+  SALT_ROUNDS: +process.env.SALT_ROUNDS || 12,
   SALT_ENV: process.env.SALT_CONSTANT,
   JWT_ACCESS_HASH_KEY: process.env.JWT_ACCESS_HASH_KEY,
   JWT_REFRESH_HASH_KEY: process.env.JWT_REFRESH_HASH_KEY,
@@ -10,4 +10,7 @@ module.exports = {
   GMAIL_ID: process.env.GMAIL_ID,
   GMAIL_PASS: process.env.GMAIL_PASS,
   OPEN_AI_API_KEY: process.env.OPEN_AI_API_KEY,
+  //? off by default so local dev and demos work without mail credentials;
+  //? turn it on in production, where email actually sends
+  REQUIRE_EMAIL_VERIFICATION: process.env.REQUIRE_EMAIL_VERIFICATION === 'true',
 };

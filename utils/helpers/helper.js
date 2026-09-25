@@ -48,22 +48,26 @@ const isAuthenticated = async (req, res, next) => {
       throw new httpError(null, 400, {}, 'Authorization header missing or invalid');
     }
     let token = authorization.split(' ')[1];
-    jwt.verify(token, JWT_ACCESS_HASH_KEY, (err, decoded) => {
-      if (err) {
-        throw new httpError(null, 401, {}, 'Invalid Token');
-      }
-      
-      // Set user info directly on the request object
-      req.username = decoded.username;
-      req.userId = decoded.userId;
-      
-      // Also set in body for backward compatibility
-      if (!req.body) req.body = {};
-      req.body.username = decoded.username;
-      req.body.userId = decoded.userId;
-      
-      next();
-    });
+
+    //? verify synchronously - throwing from the callback form escapes this
+    //? try/catch and takes the process down instead of returning a 401
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_ACCESS_HASH_KEY);
+    } catch (err) {
+      throw new httpError(null, 401, {}, 'Invalid Token');
+    }
+
+    // Set user info directly on the request object
+    req.username = decoded.username;
+    req.userId = decoded.userId;
+
+    // Also set in body for backward compatibility
+    if (!req.body) req.body = {};
+    req.body.username = decoded.username;
+    req.body.userId = decoded.userId;
+
+    next();
   } catch (err) {
     err.scope = err.scope || 'isAuthenticated';
     next(err);
@@ -79,8 +83,18 @@ cron.schedule('0 0 * * * ', () => {
 const aiReviewScheduler = async () => {
   try {
     console.log('AI REVIEW SCHEDULER TRIGGERED ..................................................');
-    // todo - fetch all the product Ids that should be processed
-    const products = await Product.find().lean();
+
+    //? only resummarize products whose review count has actually changed - the
+    //? previous version sent every product in the DB to GPT-4o every night
+    const products = await Product.find({
+      isDeleted: { $ne: true },
+      totalReviews: { $gt: 0 },
+      $expr: { $ne: ['$totalReviews', '$aiGeneratedReviewCount'] },
+    })
+      .select('_id')
+      .lean();
+
+    console.log(`AI REVIEW SCHEDULER - ${products.length} product(s) need a refreshed summary`);
     for (let product of products) await generateAIReview(product._id);
     console.log('AI REVIEW CREATION COMPLETED ....................................................');
   } catch (err) {

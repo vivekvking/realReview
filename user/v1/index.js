@@ -13,7 +13,7 @@ router.post('/validateUsername', checkValidUserName);
 router.post('/renewToken', updateAccessToken);
 
 // route to varify user email id after signup
-router.get('/verify/:username', verifyEmail);
+router.get('/verify/:token', verifyEmail);
 
 //? get user's activity by type (post, review, comment)
 router.post('/activity', isAuthenticated, activity);

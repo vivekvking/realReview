@@ -1,11 +1,12 @@
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const User = require('../../models/user');
 const { httpError } = require('../../utils/helpers/error');
 const { sendResponse } = require('../../utils/helpers/helper');
-const { SALT_ENV, JWT_ACCESS_HASH_KEY, JWT_REFRESH_HASH_KEY, SALT_ROUNDS, APP_URL } = require('../../utils/constants/envConstants');
+const { JWT_ACCESS_HASH_KEY, JWT_REFRESH_HASH_KEY, SALT_ROUNDS, APP_URL } = require('../../utils/constants/envConstants');
 const { validateUniqueUser } = require('./helper');
-const { sendEmailTemplateViaMailgun, sendMailViaGmail } = require('../../utils/helpers/email');
+const { sendMailViaGmail } = require('../../utils/helpers/email');
 const { EMAIL_TEMPLATES, NODEMAILER_EMAIL_TEMPLATES } = require('../../utils/constants/constant');
 const Product = require('../../models/product');
 const Review = require('../../models/review');
@@ -16,22 +17,26 @@ const createUser = async (req, res, next) => {
     if (!username || !password || !email) throw new httpError(null, 400, {}, 'Insufficient Data');
     let isUnique = await validateUniqueUser(username, email);
     if (!isUnique) throw new httpError(null, 409, {}, 'username or email already exits');
-    let genSalt = bcrypt.genSaltSync(SALT_ROUNDS);
-    let salt = genSalt + SALT_ENV;
-    let hashedPass = bcrypt.hashSync(password, salt);
-    let user = await User.create({ username, password: hashedPass, email, salt: genSalt, profilePic: profilePic });
+    //? bcrypt embeds the salt in the hash it returns - appending SALT_ENV to the
+    //? salt never did anything (bcrypt reads only the first 29 chars), so it is
+    //? dropped rather than left as a pepper that isn't one
+    let hashedPass = await bcrypt.hash(password, SALT_ROUNDS);
+    let verificationToken = crypto.randomBytes(32).toString('hex');
+    let user = await User.create({ username, password: hashedPass, email, profilePic: profilePic, verificationToken });
     let accessToken = jwt.sign({ username, userId: user._id }, JWT_ACCESS_HASH_KEY, { expiresIn: '1h' });
     let refreshToken = jwt.sign({ username, userId: user._id }, JWT_REFRESH_HASH_KEY, { expiresIn: '30d' });
-    user.accessToken = accessToken;
-    user.refreshToken = refreshToken;
-    await user.save();
 
-    // todo - verify user
-    let redirectUrl = `${APP_URL}/user/v1/verify/${username}`;
-    // sendEmailTemplateViaMailgun({ to: email, subject: 'Verify Your Email', template: EMAIL_TEMPLATES.email_verification.name, variables: { username, verifyEmailRedirectUrl } });
-    // sendMailViaGmail({ to: email, subject: 'Verify Your Email', templateName: NODEMAILER_EMAIL_TEMPLATES.email_verification.name, variables: { username, redirectUrl } });
+    let redirectUrl = `${APP_URL}/user/v1/verify/${verificationToken}`;
+    //? fire and forget - a mail failure must not block signup, and the helper
+    //? no-ops with a log when no credentials are configured
+    sendMailViaGmail({
+      to: email,
+      subject: 'Verify your ReviewChacha email',
+      templateName: NODEMAILER_EMAIL_TEMPLATES.email_verification.name,
+      variables: { username, redirectUrl },
+    });
 
-    return sendResponse(res, 200, { username, accessToken, refreshToken, redirectUrl }, 'success!');
+    return sendResponse(res, 200, { username, accessToken, refreshToken }, 'success!');
   } catch (err) {
     err.scope = err.scope || 'createUser';
     next(err);
@@ -45,14 +50,14 @@ const loginUser = async (req, res, next) => {
     let query = email ? { email } : { username };
     let user = await User.findOne(query).exec();
     if (!user) throw new httpError(null, 404, {}, 'User not found');
-    let salt = user.salt + SALT_ENV;
-    let hashedPass = bcrypt.hashSync(password, salt);
-    if (hashedPass != user.password) throw new httpError(null, 401, {}, 'Authentication Failed');
+    if (!password) throw new httpError(null, 400, {}, 'Bad request');
+
+    //? constant-time compare - a plain != leaks hash bytes through timing
+    let passwordMatches = await bcrypt.compare(password, user.password ?? '');
+    if (!passwordMatches) throw new httpError(null, 401, {}, 'Authentication Failed');
+
     let accessToken = jwt.sign({ username: user.username, userId: user._id }, JWT_ACCESS_HASH_KEY, { expiresIn: '1h' });
     let refreshToken = jwt.sign({ username: user.username, userId: user._id }, JWT_REFRESH_HASH_KEY, { expiresIn: '30d' });
-    user.accessToken = accessToken;
-    user.refreshToken = refreshToken;
-    await user.save();
     return sendResponse(res, 200, { refreshToken, accessToken, username: user.username }, 'success!');
   } catch (err) {
     err.scope = err.scope || 'loginUser';
@@ -64,13 +69,18 @@ const updateAccessToken = async (req, res, next) => {
   try {
     const { refreshToken } = req.body;
     if (!refreshToken) throw new httpError(null, 400, {}, 'Bad Request');
-    jwt.verify(refreshToken, JWT_REFRESH_HASH_KEY, (err, decoded) => {
-      if (err) {
-        throw new httpError(null, 401, {}, 'Invalid Token');
-      }
-      let accessToken = jwt.sign({ username: decoded.username, userId: decoded.userId }, JWT_ACCESS_HASH_KEY, { expiresIn: '1h' });
-      return sendResponse(res, 200, { accessToken }, 'success');
-    });
+
+    //? verify synchronously - throwing from the callback form escapes this
+    //? try/catch and takes the process down instead of returning a 401
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, JWT_REFRESH_HASH_KEY);
+    } catch (err) {
+      throw new httpError(null, 401, {}, 'Invalid Token');
+    }
+
+    let accessToken = jwt.sign({ username: decoded.username, userId: decoded.userId }, JWT_ACCESS_HASH_KEY, { expiresIn: '1h' });
+    return sendResponse(res, 200, { accessToken }, 'success');
   } catch (err) {
     err.scope = err.scope || 'updateAccessToken';
     next(err);
@@ -92,15 +102,20 @@ const checkValidUserName = async (req, res, next) => {
 
 const verifyEmail = async (req, res, next) => {
   try {
-    let { username } = req.params;
-    if (!username) throw new httpError(null, 400, {}, 'Insufficient Data');
-    const user = await User.findOne({ username });
-    if (!user) throw new httpError(null, 401, {}, 'Bad Request');
+    let { token } = req.params;
+    if (!token) throw new httpError(null, 400, {}, 'Insufficient Data');
+
+    //? matched on the single-use token, never on the username - the previous
+    //? version let anyone verify any account just by visiting its URL
+    const user = await User.findOne({ verificationToken: token });
+    if (!user) throw new httpError(null, 400, {}, 'This verification link is invalid or has already been used');
+
     user.isVerified = true;
+    user.verificationToken = undefined;
     await user.save();
-    return sendResponse(res, 200, {}, 'You Email is Verified Successfully');
+    return sendResponse(res, 200, {}, 'Your email is verified successfully');
   } catch (err) {
-    err.scope = err.scope || 'checkValidUserName';
+    err.scope = err.scope || 'verifyEmail';
     next(err);
   }
 };
